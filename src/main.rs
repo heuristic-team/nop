@@ -6,6 +6,6 @@ mod lexer;
 
 fn main() {
     let input = get_input();
-    let lexed = lex(&input);
+    let lexed = lex(input);
     println!("{:?}", lexed);
 }
