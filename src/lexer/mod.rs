@@ -1,5 +1,4 @@
 use std::iter::Peekable;
-use std::process::exit;
 use std::str::CharIndices;
 
 // TODO: maybe unhardcode 2 spaces for block. Will have to think about it.
@@ -222,8 +221,20 @@ mod tests {
         }
     }
     #[warn(dead_code)]
+    fn count_token(lexemes: &Vec<Lexeme>, token: Token) -> usize {
+        lexemes.iter().filter(|t| t.token == token).count()
+    }
+    #[warn(dead_code)]
+    fn test_eq_indents(str: String) {
+        let lexemes = lex(str);
+        let scope_starts = count_token(&lexemes, Token::ScopeStart);
+        let scope_ends = count_token(&lexemes, Token::ScopeEnd);
+        assert_eq!(scope_starts, scope_ends);
+    }
+
+    #[warn(dead_code)]
     fn test_indent(str: String, indent: usize) {
-        let lexems = lex(str);
+        let lexems = lex(str.clone());
         let mut indent_count = 0;
         for i in &lexems {
             if i.token != Token::ScopeStart {
@@ -232,15 +243,28 @@ mod tests {
             indent_count += 1;
         }
         assert_eq!(indent, indent_count);
-        let scope_starts = lexems
-            .iter()
-            .filter(|lexeme| lexeme.token == Token::ScopeStart)
-            .count();
-        let scope_ends = lexems
-            .iter()
-            .filter(|lexeme| lexeme.token == Token::ScopeEnd)
-            .count();
-        assert_eq!(scope_starts, scope_ends);
+        test_eq_indents(str);
+    }
+    #[test]
+    fn test_overall() {
+        let str = "  134\n    431\n  138\n".to_string();
+        let lexemes = lex(str);
+        let expected = vec![
+            Token::ScopeStart,
+            Token::Num(134),
+            Token::ScopeStart,
+            Token::Num(431),
+            Token::ScopeEnd,
+            Token::Num(138),
+            Token::ScopeEnd,
+        ];
+        let tokens: Vec<_> = lexemes.into_iter().map(|lexeme| lexeme.token).collect();
+        println!("{:?}", tokens);
+        let _: Vec<_> = tokens
+            .into_iter()
+            .zip(expected)
+            .map(|(f, s)| assert_eq!(f, s))
+            .collect();
     }
     #[test]
     fn test_indent1() {
