@@ -129,8 +129,6 @@ fn peek_location<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> usize {
         n
     } else {
         ctx.file_size
-        //panic!("Tried to peek location on nothing"); idk if it's correct decision not to panic
-        //there. feels right actually.
     }
 }
 
@@ -197,7 +195,7 @@ fn valid_id(ch: char) -> bool {
 }
 
 // redo it with returning and options instead of mutating lexer context.
-fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
+fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
     let start = ctx.current_location(it);
 
     let &(_, symbol) = it.peek().unwrap();
@@ -216,8 +214,11 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
         let span = Span::new(start, end);
 
         let lexeme = Lexeme::new(token, span);
-        ctx.add_lexeme(lexeme);
+
+        return Some(lexeme);
     }
+
+    None
 }
 
 fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
@@ -241,13 +242,18 @@ fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
 fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     lex_linestart(it, ctx);
     while let Some(&(_, ch)) = it.peek() {
+        if let Some(lexeme) = lex_symbols(it, ctx) {
+            ctx.add_lexeme(lexeme);
+            continue;
+        }
         if valid_id_start(ch) {
             let id = lex_id(it, ctx);
             ctx.add_lexeme(id);
+            continue;
         }
-        lex_symbols(it, ctx);
         if ch.is_numeric() {
             lex_number(it, ctx);
+            continue;
         }
         if ch == '\n' {
             it.next();
@@ -258,9 +264,7 @@ fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
             it.next();
             continue;
         }
-        // the problem lies here in the fact that if the lexer finds symbol it cannot lex it will
-        // just hang indefinetely. optioning all the stuff and then checking it will fix the
-        // problem.
+        panic!("lexer couldn't discern some symbol: {}", ch);
     }
 }
 
