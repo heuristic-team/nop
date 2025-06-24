@@ -9,14 +9,23 @@ pub enum Token {
     Num(u64),
     Assign,
     Eq,
+    Fn,
+    Let,
+    Type,
     ScopeStart,
     ScopeEnd,
 }
 
+static KEYWORDS: &[(Token, &str)] = &[
+    (Token::Fn, "fn"),
+    (Token::Let, "let"),
+    (Token::Type, "type"),
+];
+
 #[derive(Debug, Clone, Copy)]
-struct Location {
-    line: usize,
-    symbol: usize,
+pub struct Location {
+    pub line: usize,
+    pub symbol: usize,
 }
 
 impl Location {
@@ -26,9 +35,9 @@ impl Location {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Span {
-    start: Location,
-    end: Location,
+pub struct Span {
+    pub start: Location,
+    pub end: Location,
 }
 
 impl Span {
@@ -40,7 +49,7 @@ impl Span {
 #[derive(Debug, Clone)]
 pub struct Lexeme {
     pub token: Token,
-    span: Span,
+    pub span: Span,
 }
 
 impl Lexeme {
@@ -179,6 +188,14 @@ fn multiple_symbol<'a>(it: &mut It<'a>, expected: &str, expected_token: Token) -
     Some(expected_token)
 }
 
+fn valid_id_start(ch: char) -> bool {
+    ch.is_alphabetic() || ch == '_'
+}
+
+fn valid_id(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
 // redo it with returning and options instead of mutating lexer context.
 fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     let start = ctx.current_location(it);
@@ -203,9 +220,31 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     }
 }
 
+fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
+    let start = ctx.current_location(it);
+
+    let id = eat_while(valid_id, it);
+
+    let end = ctx.current_location(it);
+
+    let span = Span::new(start, end);
+
+    for (token, str) in KEYWORDS {
+        if *str == id {
+            return Lexeme::new(token.clone(), span);
+        }
+    }
+
+    Lexeme::new(Token::Id(id), span)
+}
+
 fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     lex_linestart(it, ctx);
     while let Some(&(_, ch)) = it.peek() {
+        if valid_id_start(ch) {
+            let id = lex_id(it, ctx);
+            ctx.add_lexeme(id);
+        }
         lex_symbols(it, ctx);
         if ch.is_numeric() {
             lex_number(it, ctx);
