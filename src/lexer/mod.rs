@@ -12,6 +12,7 @@ pub enum Token {
     Fn,
     Let,
     Type,
+    EOL,
     ScopeStart,
     ScopeEnd,
 }
@@ -114,7 +115,12 @@ impl LexerCtx {
             ret: Vec::new(),
         }
     }
-    fn new_line(&mut self) {
+    fn new_line<'a>(&mut self, it: &mut It<'a>) {
+        let pos = self.current_location(it);
+        let token = Token::EOL;
+        let span = Span::new(pos, pos);
+        let lexeme = Lexeme::new(token, span);
+        self.add_lexeme(lexeme);
         self.line += 1;
     }
 
@@ -257,6 +263,7 @@ fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
         }
         if ch == '\n' {
             it.next();
+            ctx.new_line(it);
             lex_linestart(it, ctx);
             continue;
         }
@@ -284,7 +291,6 @@ fn lex_indent<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> usize {
 }
 
 fn lex_linestart<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
-    ctx.new_line();
     if !it.peek().is_none() {
         let indent = lex_indent(it, ctx);
         ctx.process_indent(it, indent);
@@ -349,10 +355,13 @@ mod tests {
         let expected = vec![
             Token::ScopeStart,
             Token::Num(134),
+            Token::EOL,
             Token::ScopeStart,
             Token::Num(431),
+            Token::EOL,
             Token::ScopeEnd,
             Token::Num(138),
+            Token::EOL,
             Token::ScopeEnd,
         ];
         let tokens: Vec<_> = lexemes.into_iter().map(|lexeme| lexeme.token).collect();
