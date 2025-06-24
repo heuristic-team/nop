@@ -2,10 +2,12 @@ use std::iter::Peekable;
 use std::process::exit;
 use std::str::CharIndices;
 
-#[derive(Debug, Clone)]
+// TODO: maybe unhardcode 2 spaces for block. Will have to think about it.
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Token {
     Id(String),
-    Num(i64),
+    Num(u64),
     ScopeStart,
     ScopeEnd,
 }
@@ -51,6 +53,7 @@ type It<'a> = Peekable<CharIndices<'a>>;
 struct LexerCtx {
     line: usize,
     indent: usize,
+    file_size: usize,
     ret: Vec<Lexeme>,
 }
 
@@ -60,7 +63,7 @@ impl LexerCtx {
     }
 
     fn current_location<'a>(&self, it: &mut It<'a>) -> Location {
-        self.create_location(peek_location(it))
+        self.create_location(peek_location(it, self))
     }
 
     fn process_indent<'a>(&mut self, it: &mut It<'a>, indent: usize) {
@@ -93,10 +96,11 @@ impl LexerCtx {
         }
     }
 
-    fn new() -> Self {
+    fn new(file_size: usize) -> Self {
         LexerCtx {
             line: 0,
             indent: 0,
+            file_size,
             ret: Vec::new(),
         }
     }
@@ -109,16 +113,18 @@ impl LexerCtx {
     }
 }
 
-fn peek_location<'a>(it: &mut It<'a>) -> usize {
+fn peek_location<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> usize {
     let loc = it.peek();
     if let Some(&(n, _)) = loc {
-        return n;
+        n
     } else {
-        panic!("Tried to peek location on nothing");
+        ctx.file_size
+        //panic!("Tried to peek location on nothing"); idk if it's correct decision not to panic
+        //there. feels right actually.
     }
 }
 
-fn eat_while<'a>(f: fn(char) -> bool, it: &mut It<'a>, ctx: &mut LexerCtx) -> String {
+fn eat_while<'a>(f: fn(char) -> bool, it: &mut It<'a>) -> String {
     let mut ret = String::new();
 
     while let Some(&(_, ch)) = it.peek() {
@@ -135,7 +141,7 @@ fn eat_while<'a>(f: fn(char) -> bool, it: &mut It<'a>, ctx: &mut LexerCtx) -> St
 fn lex_number<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     let start = ctx.current_location(it);
 
-    let num = eat_while(char::is_numeric, it, ctx);
+    let num = eat_while(char::is_numeric, it);
 
     let end = ctx.current_location(it);
 
@@ -191,7 +197,7 @@ fn lex_linestart<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
 
 fn perform(s: String) -> LexerCtx {
     let mut iter = s.char_indices().peekable();
-    let mut ctx = LexerCtx::new();
+    let mut ctx = LexerCtx::new(s.len());
 
     matcher(&mut iter, &mut ctx);
     ctx.close_indents(s.len());
@@ -201,4 +207,76 @@ fn perform(s: String) -> LexerCtx {
 
 pub fn lex(s: String) -> Vec<Lexeme> {
     perform(s).ret
+}
+
+mod tests {
+    use super::*;
+    #[warn(dead_code)]
+    fn test_num(str: String, num: u64) {
+        let lexems = lex(str);
+        assert_eq!(lexems.len(), 1);
+        let token = lexems[0].token.clone();
+        match token {
+            Token::Num(number) => assert_eq!(number, num),
+            _ => assert!(false),
+        }
+    }
+    #[warn(dead_code)]
+    fn test_indent(str: String, indent: usize) {
+        let lexems = lex(str);
+        let mut indent_count = 0;
+        for i in &lexems {
+            if i.token != Token::ScopeStart {
+                break;
+            }
+            indent_count += 1;
+        }
+        assert_eq!(indent, indent_count);
+        let scope_starts = lexems
+            .iter()
+            .filter(|lexeme| lexeme.token == Token::ScopeStart)
+            .count();
+        let scope_ends = lexems
+            .iter()
+            .filter(|lexeme| lexeme.token == Token::ScopeEnd)
+            .count();
+        assert_eq!(scope_starts, scope_ends);
+    }
+    #[test]
+    fn test_indent1() {
+        test_indent("    145".to_string(), 2);
+    }
+    #[test]
+    fn test_indent2() {
+        test_indent("145".to_string(), 0);
+    }
+    #[test]
+    fn test_indent3() {
+        test_indent(" 145".to_string(), 0);
+    }
+    #[test]
+    fn test_indent4() {
+        test_indent("  145".to_string(), 1);
+    }
+    #[test]
+    fn test_indent5() {
+        test_indent(
+            "  145\
+                 148"
+            .to_string(),
+            1,
+        );
+    }
+    #[test]
+    fn test_num1() {
+        test_num("1345".to_string(), 1345);
+    }
+    #[test]
+    fn test_num2() {
+        test_num("140124".to_string(), 140124);
+    }
+    #[test]
+    fn test_num3() {
+        test_num("0".to_string(), 0);
+    }
 }
