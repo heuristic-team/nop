@@ -7,6 +7,8 @@ use std::str::CharIndices;
 pub enum Token {
     Id(String),
     Num(u64),
+    Assign,
+    Eq,
     ScopeStart,
     ScopeEnd,
 }
@@ -153,9 +155,58 @@ fn lex_number<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     ctx.add_lexeme(lexeme);
 }
 
+fn multiple_symbol<'a>(it: &mut It<'a>, expected: &str, expected_token: Token) -> Option<Token> {
+    let mut cloned = it.clone();
+
+    let len = expected.len();
+
+    for i in expected.chars() {
+        let peeked = cloned.peek();
+        if peeked.is_none() {
+            return None;
+        }
+        let &(_, ch) = peeked.unwrap();
+        if ch != i {
+            return None;
+        }
+        cloned.next();
+    }
+
+    for _ in 0..len {
+        it.next();
+    }
+
+    Some(expected_token)
+}
+
+// redo it with returning and options instead of mutating lexer context.
+fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
+    let start = ctx.current_location(it);
+
+    let &(_, symbol) = it.peek().unwrap();
+
+    if symbol == '=' {
+        let token = multiple_symbol(it, "==", Token::Eq);
+
+        if token.is_none() {
+            it.next();
+        }
+
+        let token = token.unwrap_or(Token::Assign);
+
+        let end = ctx.current_location(it);
+
+        let span = Span::new(start, end);
+
+        let lexeme = Lexeme::new(token, span);
+        ctx.add_lexeme(lexeme);
+    }
+}
+
 fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
     lex_linestart(it, ctx);
     while let Some(&(_, ch)) = it.peek() {
+        lex_symbols(it, ctx);
         if ch.is_numeric() {
             lex_number(it, ctx);
         }
@@ -168,6 +219,9 @@ fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
             it.next();
             continue;
         }
+        // the problem lies here in the fact that if the lexer finds symbol it cannot lex it will
+        // just hang indefinetely. optioning all the stuff and then checking it will fix the
+        // problem.
     }
 }
 
@@ -259,7 +313,6 @@ mod tests {
             Token::ScopeEnd,
         ];
         let tokens: Vec<_> = lexemes.into_iter().map(|lexeme| lexeme.token).collect();
-        println!("{:?}", tokens);
         let _: Vec<_> = tokens
             .into_iter()
             .zip(expected)
