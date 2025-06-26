@@ -15,12 +15,23 @@ pub enum Token {
     EOL,
     ScopeStart,
     ScopeEnd,
+    LParen,
+    RParen,
+    Quotes,
+    Dot,
 }
 
 static KEYWORDS: &[(Token, &str)] = &[
     (Token::Fn, "fn"),
     (Token::Let, "let"),
     (Token::Type, "type"),
+];
+
+static SYMBOLS: &[(char, Token)] = &[
+    ('(', Token::LParen),
+    (')', Token::RParen),
+    ('\"', Token::Quotes),
+    ('.', Token::Dot),
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -200,8 +211,33 @@ fn valid_id(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_'
 }
 
+fn single_symbol<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Option<Lexeme> {
+    let &(_, symbol) = it.peek().unwrap();
+
+    for (ch, token) in SYMBOLS {
+        if *ch == symbol {
+            let start = ctx.current_location(it);
+            it.next();
+            let end = ctx.current_location(it);
+
+            let span = Span::new(start, end);
+
+            let lexeme = Lexeme::new(token.clone(), span);
+
+            return Some(lexeme);
+        }
+    }
+    None
+}
+
 // redo it with returning and options instead of mutating lexer context.
 fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
+    let try_single = single_symbol(it, ctx);
+
+    if try_single.is_some() {
+        return try_single;
+    }
+
     let start = ctx.current_location(it);
 
     let &(_, symbol) = it.peek().unwrap();
