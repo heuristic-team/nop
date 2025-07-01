@@ -347,9 +347,9 @@ pub fn lex(s: String) -> Vec<Lexeme> {
     perform(s).ret
 }
 
+#[allow(dead_code)]
 mod tests {
     use super::*;
-    #[warn(dead_code)]
     fn test_num(str: String, num: u64) {
         let lexems = lex(str);
         assert_eq!(lexems.len(), 1);
@@ -359,11 +359,9 @@ mod tests {
             _ => assert!(false),
         }
     }
-    #[warn(dead_code)]
     fn count_token(lexemes: &Vec<Lexeme>, token: Token) -> usize {
         lexemes.iter().filter(|t| t.token == token).count()
     }
-    #[warn(dead_code)]
     fn test_eq_indents(str: String) {
         let lexemes = lex(str);
         let scope_starts = count_token(&lexemes, Token::ScopeStart);
@@ -371,7 +369,6 @@ mod tests {
         assert_eq!(scope_starts, scope_ends);
     }
 
-    #[warn(dead_code)]
     fn test_indent(str: String, indent: usize) {
         let lexems = lex(str.clone());
         let mut indent_count = 0;

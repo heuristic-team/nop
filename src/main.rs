@@ -1,5 +1,6 @@
 use cli::get_input;
 use lexer::lex;
+use parser::parse;
 
 mod cli;
 mod ir;
@@ -12,4 +13,6 @@ fn main() {
     let lexed = lex(input);
     let tokens: Vec<lexer::Token> = lexed.iter().map(|lexeme| lexeme.token.clone()).collect();
     println!("{:?}", tokens);
+    println!();
+    let parsed = parse(lexed);
 }
