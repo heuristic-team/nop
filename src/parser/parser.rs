@@ -84,15 +84,9 @@ fn expected(expected: Token, got: Lexeme) -> Result<Lexeme, ParseError> {
 }
 
 fn parse_call(it: &mut It) -> Res<Expr> {
-    let id = it.peek();
-    if let None = id {
-        return None;
-    }
+    let id = it.peek()?;
 
-    let left_bracket = it.peekn(1);
-    if let None = left_bracket {
-        return None;
-    }
+    let left_bracket = it.peekn(1)?;
 
     let call_name = it.next().unwrap();
     let _left_bracket = it.next();
