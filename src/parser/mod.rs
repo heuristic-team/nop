@@ -7,7 +7,7 @@ mod parser;
 
 pub fn parse(lexemes: Vec<Lexeme>) {
     let mut parser = It::new(lexemes);
-    while let Some(lex) = parser.peek() {
+    while let Some(lex) = parser.peekn(0) {
         println!("{:?}", lex);
         parser.next();
     }

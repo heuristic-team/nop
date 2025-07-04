@@ -28,6 +28,12 @@ pub struct Expr {
     pub span: Span,
 }
 
+impl Expr {
+    pub fn new(expr: ExprContent, tp: Type, span: Span) -> Self {
+        Expr { expr, tp, span }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum StmtContent {
     Declare(String, Expr),
@@ -46,5 +52,6 @@ pub struct Loop {
 #[derive(Debug, Clone)]
 pub enum ExprContent {
     Num(u64),
+    Ref(String),
     Call(String, Vec<Expr>),
 }
