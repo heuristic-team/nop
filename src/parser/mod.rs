@@ -11,7 +11,7 @@ pub struct Parser<L: Lexemes> {
     lexemes: L,
 }
 
-macro_rules! expect {
+macro_rules! filter_token {
     ($($p:pat),*) => {
         |_token|
         {
@@ -23,7 +23,7 @@ macro_rules! expect {
     };
 }
 
-macro_rules! expect_map {
+macro_rules! filter_map_token {
     ($($p:pat => $e:expr),*) => {
         |_token|
         {
@@ -111,12 +111,15 @@ impl<L: Lexemes> Parser<L> {
     }
 
     fn parse_id(&mut self) -> Res<WithSpan<String>> {
-        self.get_map(expect_map!(Token::Id(id) => id), expected!("identifier"))
+        self.get_map(
+            filter_map_token!(Token::Id(id) => id),
+            expected!("identifier"),
+        )
     }
 
     fn parse_type(&mut self) -> Res<WithSpan<Type>> {
         let WithSpan { value: tp, span } = self.get_map(
-            expect_map!(Token::Id(tp) => Type::from_str(&tp).ok_or(tp)),
+            filter_map_token!(Token::Id(tp) => Type::from_str(&tp).ok_or(tp)),
             expected!("type"),
         )?;
         let tp = tp.map_err(|id| ParseError::new(expected!("type"), id, span))?;
@@ -124,7 +127,7 @@ impl<L: Lexemes> Parser<L> {
     }
 
     fn parse_decl(&mut self) -> Res<FnDecl> {
-        self.get(expect!(Token::Fn), expected!(Token::Fn))?;
+        self.get(filter_token!(Token::Fn), expected!(Token::Fn))?;
 
         let name = self.parse_id()?;
         let params = self.parse_fn_params()?;
@@ -133,14 +136,14 @@ impl<L: Lexemes> Parser<L> {
             value: tp,
             span: tp_span,
         } = self
-            .try_get(expect_map!(Token::Id(tp) => Type::from_str(&tp).ok_or(tp)))
+            .try_get(filter_map_token!(Token::Id(tp) => Type::from_str(&tp).ok_or(tp)))
             .unwrap_or_else(|| {
                 let tp_dummy_span = self.lexemes.peek().span;
                 WithSpan::new(Ok(Type::Unit), tp_dummy_span)
             });
         let tp = tp.map_err(|id| ParseError::new(expected!("type"), id, tp_span))?;
 
-        self.get(expect!(Token::Assign), expected!(Token::Assign))?;
+        self.get(filter_token!(Token::Assign), expected!(Token::Assign))?;
 
         let body = self.parse_block_or_expr()?;
 
@@ -154,22 +157,22 @@ impl<L: Lexemes> Parser<L> {
     }
 
     fn parse_fn_params(&mut self) -> Res<Vec<(String, Type)>> {
-        self.get(expect!(Token::LParen), expected!(Token::LParen))?;
+        self.get(filter_token!(Token::LParen), expected!(Token::LParen))?;
 
         let mut res = Vec::new();
 
         while Token::RParen != self.lexemes.peek().value {
             let name = self.parse_id()?;
-            self.get(expect!(Token::Colon), expected!(Token::Colon))?;
+            self.get(filter_token!(Token::Colon), expected!(Token::Colon))?;
 
             let tp = self.parse_type()?;
 
             res.push((name.value, tp.value));
 
             // TODO: trailing comma
-            self.eat_if(expect!(Token::Comma));
+            self.eat_if(filter_token!(Token::Comma));
         }
-        self.get(expect!(Token::RParen), expected!(Token::RParen))?;
+        self.get(filter_token!(Token::RParen), expected!(Token::RParen))?;
 
         Ok(res)
     }
@@ -200,27 +203,30 @@ impl<L: Lexemes> Parser<L> {
             let expr = self.parse_expr()?;
             let stmt = Stmt::Expr(expr);
             let body = vec![stmt];
-            self.get(expect!(Token::EOL), expected!(Token::EOL))?;
+            self.get(filter_token!(Token::EOL), expected!(Token::EOL))?;
             return Ok(body);
         }
 
-        self.eat_while(expect!(Token::EOL));
-        self.get(expect!(Token::ScopeStart), expected!("indented block"))?;
+        self.eat_while(filter_token!(Token::EOL));
+        self.get(
+            filter_token!(Token::ScopeStart),
+            expected!("indented block"),
+        )?;
 
         let mut body = Vec::new();
         while self.lexemes.peek().value != Token::ScopeEnd {
-            self.eat_while(expect!(Token::EOL));
+            self.eat_while(filter_token!(Token::EOL));
             body.push(self.parse_stmt()?);
         }
 
-        self.get(expect!(Token::ScopeEnd), expected!(""))
+        self.get(filter_token!(Token::ScopeEnd), expected!("scope end"))
             .expect("scopes should be closed");
 
         Ok(body)
     }
 
     fn parse_stmt(&mut self) -> Res<Stmt> {
-        let res = match (self.lexemes.peek().value, self.lexemes.peek_nth(1).value) {
+        let stmt = match (self.lexemes.peek().value, self.lexemes.peek_nth(1).value) {
             (Token::Id(_), Token::Define) => self.parse_definition_stmt(),
             (Token::Id(_), Token::Colon) => self.parse_declaration_stmt(),
             _ => self.parse_expr().map(|x| Stmt::Expr(x)),
@@ -228,7 +234,7 @@ impl<L: Lexemes> Parser<L> {
 
         let WithSpan { value: token, span } = self.lexemes.peek();
         match token {
-            Token::EOL => self.eat_while(expect!(Token::EOL)),
+            Token::EOL => self.eat_while(filter_token!(Token::EOL)),
             Token::ScopeEnd => {}
             t => {
                 return Err(ParseError::new(
@@ -238,14 +244,14 @@ impl<L: Lexemes> Parser<L> {
                 ));
             }
         }
-        Ok(res)
+        Ok(stmt)
     }
 
     fn parse_definition_stmt(&mut self) -> Res<Stmt> {
         // NAME := VALUE
 
         let name = self.parse_id()?;
-        self.get(expect!(Token::Define), expected!(Token::Define))?;
+        self.get(filter_token!(Token::Define), expected!(Token::Define))?;
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare(name.value, Type::Undef, value))
@@ -255,9 +261,9 @@ impl<L: Lexemes> Parser<L> {
         // NAME: TYPE = VALUE
 
         let name = self.parse_id()?;
-        self.get(expect!(Token::Colon), expected!(Token::Colon))?;
+        self.get(filter_token!(Token::Colon), expected!(Token::Colon))?;
         let tp = self.parse_type()?;
-        self.get(expect!(Token::Assign), expected!(Token::Assign))?;
+        self.get(filter_token!(Token::Assign), expected!(Token::Assign))?;
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare(name.value, tp.value, value))
@@ -270,11 +276,11 @@ impl<L: Lexemes> Parser<L> {
 
     fn parse_term(&mut self) -> Res<Expr> {
         let WithSpan { value: token, span } = self.lexemes.peek();
-        match token {
+        let term = match token {
             Token::LParen => {
                 self.lexemes.next();
                 let res = self.parse_expr()?;
-                self.get(expect!(Token::RParen), expected!(Token::RParen))?;
+                self.get(filter_token!(Token::RParen), expected!(Token::RParen))?;
                 Ok(res)
             }
             Token::Id(name) => {
@@ -292,7 +298,33 @@ impl<L: Lexemes> Parser<L> {
                 })
             }
             t => Err(ParseError::new(expected!("term"), t.to_string(), span)),
+        }?;
+
+        if let Token::LParen = self.lexemes.peek().value {
+            self.parse_call_expr(term)
+        } else {
+            Ok(term)
         }
+    }
+
+    fn parse_call_expr(&mut self, callee: Expr) -> Res<Expr> {
+        self.get(filter_token!(Token::LParen), expected!(Token::LParen))?;
+
+        let mut args = Vec::new();
+
+        while Token::RParen != self.lexemes.peek().value {
+            let arg = self.parse_expr()?;
+            args.push(arg);
+
+            // TODO: trailing comma
+            self.eat_if(filter_token!(Token::Comma));
+        }
+        self.get(filter_token!(Token::RParen), expected!(Token::RParen))?;
+
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            args,
+        })
     }
 
     fn get_cur_op_prec(&self) -> Option<OpPrecedence> {
@@ -341,7 +373,7 @@ mod tests {
 
     #[test]
     fn huh() {
-        let lexemes = lex("fn foo(a: i64, b: bool) =\n  x := 4 - 42\n  y : i64 = 4\n  x + y");
+        let lexemes = lex("fn foo(a: i64, b: bool) =\n  x := f(4) - 42\n  y : i64 = 4\n  x + y");
         let mut parser = Parser::new(lexemes);
 
         print_decl(&parser.parse_decl().unwrap());

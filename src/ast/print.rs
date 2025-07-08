@@ -1,7 +1,7 @@
 use crate::ast::*;
 
 pub fn print_decl(decl: &FnDecl) {
-    print!("fn {} (", decl.name);
+    print!("fn {}(", decl.name);
     if let Some(((n, t), init)) = decl.params.split_last() {
         for (n, t) in init {
             print!("{n}: {t}, ");
@@ -43,10 +43,9 @@ fn print_expr(expr: &Expr, depth: u8) {
             make_offset(depth + 1);
             println!("with args");
             for arg in args {
-                print_expr(arg, depth + 1)
+                print_expr(arg, depth + 2)
             }
             make_offset(depth);
-            println!("end call")
         }
         Expr::Binary { op, lhs, rhs } => {
             println!("{op}");
