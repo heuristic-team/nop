@@ -1,0 +1,23 @@
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Token {
+    EOF,
+    Id(String),
+    Num(u64),
+    Assign,
+    Define,
+    Eq,
+    Fn,
+    Type,
+    EOL,
+    ScopeStart,
+    ScopeEnd,
+    LParen,
+    RParen,
+    Quote,
+    Dot,
+    Comma,
+    Colon,
+    Plus,
+    Minus,
+    Mul,
+}

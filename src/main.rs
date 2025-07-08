@@ -1,7 +1,8 @@
 use cli::get_input;
 use lexer::lex;
-use parser::parse;
+use parser::Parser;
 
+mod ast;
 mod cli;
 mod ir;
 mod lexer;
@@ -10,9 +11,15 @@ mod typesystem;
 
 fn main() {
     let input = get_input();
-    let lexed = lex(input);
-    let tokens: Vec<lexer::Token> = lexed.iter().map(|lexeme| lexeme.token.clone()).collect();
-    println!("{:?}", tokens);
-    println!();
-    let parsed = parse(lexed);
+    let tokens = lex(&input);
+
+    let parsed = Parser::new(tokens).parse();
+    match parsed {
+        Ok(decls) => {
+            for decl in &decls {
+                crate::ast::print::print_decl(decl)
+            }
+        }
+        Err(err) => todo!(), // print error nicely
+    }
 }

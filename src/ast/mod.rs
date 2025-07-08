@@ -1,0 +1,89 @@
+use std::fmt::Display;
+
+use crate::lexer::Span;
+use crate::typesystem::types::*;
+
+pub mod print;
+
+#[derive(Debug)]
+pub struct FnDecl {
+    pub name: String,
+    pub tp: Type,
+    pub params: Vec<(String, Type)>,
+    pub body: Block,
+}
+
+pub type Block = Vec<Stmt>;
+
+#[derive(Debug, Clone)]
+pub enum Stmt {
+    Declare(String, Type, Expr),
+    Expr(Expr),
+}
+
+pub type OpPrecedence = u8;
+
+// #[derive(Debug, Clone, Copy)]
+// pub enum UnaryOp {
+//     Negate,
+// }
+
+#[derive(Debug, Clone, Copy)]
+pub enum BinaryOp {
+    Plus,
+    Minus,
+    Mul,
+}
+
+impl BinaryOp {
+    pub fn prec(&self) -> OpPrecedence {
+        match self {
+            Self::Plus => 4,
+            Self::Minus => 4,
+            Self::Mul => 5,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Num {
+        tp: Type,
+        value: u64,
+    },
+    Ref {
+        tp: Type,
+        name: String,
+    },
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    // Unary {
+    //     op: UnaryOp,
+    //     operand: Box<Expr>,
+    // },
+    Binary {
+        op: BinaryOp,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct Loop {
+    pub decl: Option<Vec<Stmt>>,
+    pub cond: Option<Vec<Expr>>,
+    pub on_iter: Option<Vec<Expr>>,
+    pub span: Span,
+}
+
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOp::Plus => write!(f, "+"),
+            BinaryOp::Minus => write!(f, "-"),
+            BinaryOp::Mul => write!(f, "*"),
+        }
+    }
+}
