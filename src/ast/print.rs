@@ -23,7 +23,7 @@ fn make_offset(depth: u8) {
 
 fn print_stmt(stmt: &Stmt, depth: u8) {
     match stmt {
-        Stmt::Declare(name, tp, value) => {
+        Stmt::Declare { name, tp, value } => {
             make_offset(depth);
             println!("let {name}: {tp} =");
             print_expr(value, depth + 1);

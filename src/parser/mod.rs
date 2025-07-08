@@ -1,5 +1,5 @@
 use crate::ast::{BinaryOp, Block, Expr, FnDecl, OpPrecedence, Stmt};
-use crate::lexer::{Lexeme, Lexemes, Span, Token, WithSpan};
+use crate::lexer::{Lexeme, Lexemes, Token, WithSpan};
 use crate::typesystem::types::Type;
 
 mod res;
@@ -49,23 +49,13 @@ impl<L: Lexemes> Parser<L> {
     pub fn parse(&mut self) -> Res<Vec<FnDecl>> {
         let mut decls = Vec::new();
         while !self.lexemes.is_eof() {
-            match self.parse_decl() {
+            match self.parse_fn_decl() {
                 Ok(decl) => decls.push(decl),
                 Err(err) => return Err(err),
             }
         }
 
         Ok(decls)
-    }
-
-    fn try_get<T>(&mut self, matcher: impl FnOnce(Token) -> Option<T>) -> Option<WithSpan<T>> {
-        let ws = self.lexemes.peek();
-        if let Some(res) = matcher(ws.value) {
-            self.lexemes.next();
-            Some(WithSpan::new(res, ws.span))
-        } else {
-            None
-        }
     }
 
     fn eat_if(&mut self, matcher: impl FnOnce(&Token) -> bool) {
@@ -118,30 +108,32 @@ impl<L: Lexemes> Parser<L> {
     }
 
     fn parse_type(&mut self) -> Res<WithSpan<Type>> {
-        let WithSpan { value: tp, span } = self.get_map(
-            filter_map_token!(Token::Id(tp) => Type::from_str(&tp).ok_or(tp)),
-            expected!("type"),
-        )?;
-        let tp = tp.map_err(|id| ParseError::new(expected!("type"), id, span))?;
+        let WithSpan { value: id, span } =
+            self.get_map(filter_map_token!(Token::Id(id) => id), expected!("type"))?;
+
+        let tp = match Type::from_str(&id) {
+            Some(tp) => Ok(tp),
+            None => Err(ParseError::new(expected!("type"), id, span)),
+        }?;
+
         Ok(WithSpan::new(tp, span))
     }
 
-    fn parse_decl(&mut self) -> Res<FnDecl> {
+    fn parse_fn_decl(&mut self) -> Res<FnDecl> {
         self.get(filter_token!(Token::Fn), expected!(Token::Fn))?;
 
         let name = self.parse_id()?;
         let params = self.parse_fn_params()?;
 
         let WithSpan {
-            value: tp,
+            value: tp_token,
             span: tp_span,
-        } = self
-            .try_get(filter_map_token!(Token::Id(tp) => Type::from_str(&tp).ok_or(tp)))
-            .unwrap_or_else(|| {
-                let tp_dummy_span = self.lexemes.peek().span;
-                WithSpan::new(Ok(Type::Unit), tp_dummy_span)
-            });
-        let tp = tp.map_err(|id| ParseError::new(expected!("type"), id, tp_span))?;
+        } = self.lexemes.peek();
+        let tp = if let Token::Id(_) = tp_token {
+            self.parse_type()?
+        } else {
+            WithSpan::new(Type::Unit, tp_span)
+        };
 
         self.get(filter_token!(Token::Assign), expected!(Token::Assign))?;
 
@@ -149,10 +141,11 @@ impl<L: Lexemes> Parser<L> {
 
         let decl = FnDecl {
             name: name.value,
-            tp,
+            tp: tp.value,
             params,
             body,
         };
+
         Ok(decl)
     }
 
@@ -254,7 +247,11 @@ impl<L: Lexemes> Parser<L> {
         self.get(filter_token!(Token::Define), expected!(Token::Define))?;
         let value = self.parse_expr()?;
 
-        Ok(Stmt::Declare(name.value, Type::Undef, value))
+        Ok(Stmt::Declare {
+            name: name.value,
+            tp: Type::Undef,
+            value,
+        })
     }
 
     fn parse_declaration_stmt(&mut self) -> Res<Stmt> {
@@ -266,7 +263,11 @@ impl<L: Lexemes> Parser<L> {
         self.get(filter_token!(Token::Assign), expected!(Token::Assign))?;
         let value = self.parse_expr()?;
 
-        Ok(Stmt::Declare(name.value, tp.value, value))
+        Ok(Stmt::Declare {
+            name: name.value,
+            tp: tp.value,
+            value,
+        })
     }
 
     fn parse_expr(&mut self) -> Res<Expr> {
@@ -366,17 +367,277 @@ fn bin_op_from_token(token: &Token) -> Option<BinaryOp> {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ast::print::print_decl, lexer::lex};
+    use crate::lexer::lex;
+
+    fn create_parser(input: &'static str) -> Parser<impl Lexemes> {
+        Parser::new(lex(input))
+    }
 
     #[test]
-    fn huh() {
-        let lexemes = lex("fn foo(a: i64, b: bool) =\n  x := f(4) - 42\n  y : i64 = 4\n  x + y");
-        let mut parser = Parser::new(lexemes);
+    fn fn_params() {
+        // empty
+        let mut parser = create_parser("() type");
+        let res = parser.parse_fn_params();
+        assert!(res.is_ok());
+        let params = res.unwrap();
+        assert_eq!(params.len(), 0);
+        assert_eq!(parser.lexemes.next().value, Token::Type);
 
-        print_decl(&parser.parse_decl().unwrap());
-        assert!(false);
+        // single param
+        let mut parser = create_parser("(foo: bool) 37");
+        let res = parser.parse_fn_params();
+        assert!(res.is_ok());
+        let params = res.unwrap();
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0], ("foo".to_string(), Type::Bool));
+        assert_eq!(parser.lexemes.next().value, Token::Num(37));
+
+        // multiple params
+        let mut parser = create_parser("(foo: bool, bar: i64, c: i64) fn");
+        let res = parser.parse_fn_params();
+        assert!(res.is_ok());
+        let params = res.unwrap();
+        assert_eq!(params.len(), 3);
+        assert_eq!(
+            params,
+            vec![
+                ("foo".to_string(), Type::Bool),
+                ("bar".to_string(), Type::I64),
+                ("c".to_string(), Type::I64)
+            ]
+        );
+        assert_eq!(parser.lexemes.next().value, Token::Fn);
+    }
+
+    #[test]
+    fn call_expr() {
+        let mut parser = create_parser("()");
+
+        let callee = Expr::Num {
+            tp: Type::I64,
+            value: 42,
+        };
+        let res = parser.parse_call_expr(callee.clone());
+        assert!(res.is_ok());
+        let expr = res.unwrap();
+        assert!(matches!(expr, Expr::Call { .. }));
+
+        match expr {
+            Expr::Call { callee, args } => {
+                assert!(matches!(
+                    *callee,
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 42
+                    }
+                ));
+                assert!(args.is_empty());
+            }
+            _ => unreachable!(),
+        }
+
+        let mut parser = create_parser("(4, (5))");
+        let res = parser.parse_call_expr(callee);
+        assert!(res.is_ok());
+        let expr = res.unwrap();
+        assert!(matches!(expr, Expr::Call { .. }));
+
+        match expr {
+            Expr::Call { callee, args } => {
+                assert!(matches!(
+                    *callee,
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 42
+                    }
+                ));
+
+                assert_eq!(args.len(), 2);
+                assert!(matches!(
+                    args[0],
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 4
+                    }
+                ));
+                assert!(matches!(
+                    args[1],
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 5
+                    }
+                ));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn term() {
+        let mut parser = create_parser("4");
+        let res = parser.parse_term();
+        assert!(res.is_ok());
+        let expr = res.unwrap();
+        assert!(matches!(
+            expr,
+            Expr::Num {
+                tp: Type::I64,
+                value: 4
+            }
+        ));
+
+        let mut parser = create_parser("foo");
+        let res = parser.parse_term();
+        assert!(res.is_ok());
+        let expr = res.unwrap();
+        assert!(
+            match &expr {
+                Expr::Ref {
+                    tp: Type::Undef,
+                    name,
+                } => name.as_str() == "foo",
+                _ => false,
+            },
+            "got {:?} instead of ref",
+            expr
+        );
+
+        let mut parser = create_parser("(4 + 5)");
+        let res = parser.parse_term();
+        assert!(res.is_ok());
+        let expr = res.unwrap();
+
+        assert!(matches!(expr, Expr::Binary { .. }));
+        match expr {
+            Expr::Binary { op, lhs, rhs } => {
+                assert!(matches!(op, BinaryOp::Plus));
+                assert!(matches!(
+                    lhs.as_ref(),
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 4
+                    }
+                ));
+                assert!(matches!(
+                    rhs.as_ref(),
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 5
+                    }
+                ));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn parse_expr() {
+        let mut parser = create_parser("4 + 5 * 6");
+        let res = parser.parse_expr();
+        assert!(res.is_ok());
+        let expr = res.unwrap();
+
+        assert!(matches!(expr, Expr::Binary { .. }));
+        match expr {
+            Expr::Binary { op, lhs, rhs } => {
+                assert!(matches!(op, BinaryOp::Plus));
+                assert!(matches!(
+                    lhs.as_ref(),
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 4
+                    }
+                ));
+                assert!(matches!(rhs.as_ref(), Expr::Binary { .. }));
+                match rhs.as_ref() {
+                    Expr::Binary { op, lhs, rhs } => {
+                        assert!(matches!(op, BinaryOp::Mul));
+                        assert!(matches!(
+                            lhs.as_ref(),
+                            Expr::Num {
+                                tp: Type::I64,
+                                value: 5
+                            }
+                        ));
+                        assert!(matches!(
+                            rhs.as_ref(),
+                            Expr::Num {
+                                tp: Type::I64,
+                                value: 6
+                            }
+                        ));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn block_or_expr() {
+        let mut parser = create_parser("42\n");
+        let res = parser.parse_block_or_expr();
+        assert!(res.is_ok());
+
+        let block = res.unwrap();
+        assert_eq!(block.len(), 1);
+        assert!(matches!(
+            block[0],
+            Stmt::Expr(Expr::Num {
+                tp: Type::I64,
+                value: 42
+            })
+        ));
+
+        let mut parser = create_parser("\n  x: i64 = 4\n  y := 2\n  42\n");
+        let res = parser.parse_block_or_expr();
+        assert!(res.is_ok());
+
+        let block = res.unwrap();
+        assert_eq!(block.len(), 3);
+
+        assert!(matches!(block[0], Stmt::Declare { .. }));
+        match &block[0] {
+            Stmt::Declare { name, tp, value } => {
+                assert_eq!(name.as_str(), "x");
+                assert_eq!(*tp, Type::I64);
+                assert!(matches!(
+                    value,
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 4
+                    }
+                ));
+            }
+            _ => unreachable!(),
+        }
+
+        assert!(matches!(block[1], Stmt::Declare { .. }));
+        match &block[1] {
+            Stmt::Declare { name, tp, value } => {
+                assert_eq!(name.as_str(), "y");
+                assert_eq!(*tp, Type::Undef);
+                assert!(matches!(
+                    value,
+                    Expr::Num {
+                        tp: Type::I64,
+                        value: 2
+                    }
+                ));
+            }
+            _ => unreachable!(),
+        }
+
+        assert!(matches!(
+            block[2],
+            Stmt::Expr(Expr::Num {
+                tp: Type::I64,
+                value: 42
+            })
+        ));
     }
 }

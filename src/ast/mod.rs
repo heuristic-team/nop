@@ -17,7 +17,7 @@ pub type Block = Vec<Stmt>;
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Declare(String, Type, Expr),
+    Declare { name: String, tp: Type, value: Expr },
     Expr(Expr),
 }
 

@@ -360,9 +360,10 @@ impl Display for Token {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 mod tests {
     use super::*;
+
     fn test_num(str: &str, num: u64) {
         let lexemes = lex(str);
         assert_eq!(lexemes.into_iter().count(), 1);
