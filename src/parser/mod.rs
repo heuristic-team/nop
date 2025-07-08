@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Block, Expr, FnDecl, OpPrecedence, Stmt};
+use crate::ast::{BinaryOp, Block, Expr, FnDecl, FnParam, OpPrecedence, Stmt};
 use crate::lexer::{Lexeme, Lexemes, Token, WithSpan};
 use crate::typesystem::types::Type;
 
@@ -142,8 +142,8 @@ impl Parser {
         let body = self.parse_block_or_expr()?;
 
         let decl = FnDecl {
-            name: name.value,
-            tp: tp.value,
+            name: name,
+            tp: tp,
             params,
             body,
         };
@@ -151,7 +151,7 @@ impl Parser {
         Ok(decl)
     }
 
-    fn parse_fn_params(&mut self) -> Res<Vec<(String, Type)>> {
+    fn parse_fn_params(&mut self) -> Res<Vec<FnParam>> {
         self.get(filter_token!(Token::LParen), expected!(Token::LParen))?;
 
         let mut res = Vec::new();
@@ -162,7 +162,7 @@ impl Parser {
 
             let tp = self.parse_type()?;
 
-            res.push((name.value, tp.value));
+            res.push((name, tp));
 
             // TODO: trailing comma
             self.eat_if(filter_token!(Token::Comma));
@@ -246,12 +246,14 @@ impl Parser {
         // NAME := VALUE
 
         let name = self.parse_id()?;
-        self.get(filter_token!(Token::Define), expected!(Token::Define))?;
+        let dummy_span = self
+            .get(filter_token!(Token::Define), expected!(Token::Define))?
+            .span;
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare {
-            name: name.value,
-            tp: Type::Undef,
+            name: name,
+            tp: WithSpan::new(Type::Undef, dummy_span),
             value,
         })
     }
@@ -266,8 +268,8 @@ impl Parser {
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare {
-            name: name.value,
-            tp: tp.value,
+            name: name,
+            tp: tp,
             value,
         })
     }
@@ -290,14 +292,14 @@ impl Parser {
                 self.lexemes.next();
                 Ok(Expr::Ref {
                     tp: Type::Undef,
-                    name,
+                    name: WithSpan::new(name, span),
                 })
             }
             Token::Num(value) => {
                 self.lexemes.next();
                 Ok(Expr::Num {
                     tp: Type::I64, // TODO: unhardcode this
-                    value,
+                    value: WithSpan::new(value, span),
                 })
             }
             t => Err(ParseError::new(expected!("term"), t.to_string(), span)),
@@ -352,7 +354,7 @@ impl Parser {
             };
 
             lhs = Expr::Binary {
-                op: op.value,
+                op,
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             };
@@ -394,7 +396,8 @@ mod tests {
         assert!(res.is_ok());
         let params = res.unwrap();
         assert_eq!(params.len(), 1);
-        assert_eq!(params[0], ("foo".to_string(), Type::Bool));
+        assert_eq!(params[0].0.value, "foo".to_string());
+        assert_eq!(params[0].1.value, Type::Bool);
         assert_eq!(parser.lexemes.next().value, Token::Num(37));
 
         // multiple params
@@ -404,7 +407,10 @@ mod tests {
         let params = res.unwrap();
         assert_eq!(params.len(), 3);
         assert_eq!(
-            params,
+            params
+                .into_iter()
+                .map(|p| (p.0.value, p.1.value))
+                .collect::<Vec<(String, Type)>>(),
             vec![
                 ("foo".to_string(), Type::Bool),
                 ("bar".to_string(), Type::I64),
@@ -418,10 +424,7 @@ mod tests {
     fn call_expr() {
         let mut parser = create_parser("()");
 
-        let callee = Expr::Num {
-            tp: Type::I64,
-            value: 42,
-        };
+        let callee = create_parser("42").parse_expr().unwrap();
         let res = parser.parse_call_expr(callee.clone());
         assert!(res.is_ok());
         let expr = res.unwrap();
@@ -433,7 +436,7 @@ mod tests {
                     *callee,
                     Expr::Num {
                         tp: Type::I64,
-                        value: 42
+                        value: WithSpan { value: 42, .. }
                     }
                 ));
                 assert!(args.is_empty());
@@ -453,7 +456,7 @@ mod tests {
                     *callee,
                     Expr::Num {
                         tp: Type::I64,
-                        value: 42
+                        value: WithSpan { value: 42, .. }
                     }
                 ));
 
@@ -462,14 +465,14 @@ mod tests {
                     args[0],
                     Expr::Num {
                         tp: Type::I64,
-                        value: 4
+                        value: WithSpan { value: 4, .. }
                     }
                 ));
                 assert!(matches!(
                     args[1],
                     Expr::Num {
                         tp: Type::I64,
-                        value: 5
+                        value: WithSpan { value: 5, .. }
                     }
                 ));
             }
@@ -487,7 +490,7 @@ mod tests {
             expr,
             Expr::Num {
                 tp: Type::I64,
-                value: 4
+                value: WithSpan { value: 4, .. }
             }
         ));
 
@@ -500,7 +503,7 @@ mod tests {
                 Expr::Ref {
                     tp: Type::Undef,
                     name,
-                } => name.as_str() == "foo",
+                } => name.value.as_str() == "foo",
                 _ => false,
             },
             "got {:?} instead of ref",
@@ -515,19 +518,25 @@ mod tests {
         assert!(matches!(expr, Expr::Binary { .. }));
         match expr {
             Expr::Binary { op, lhs, rhs } => {
-                assert!(matches!(op, BinaryOp::Plus));
+                assert!(matches!(
+                    op,
+                    WithSpan {
+                        value: BinaryOp::Plus,
+                        ..
+                    }
+                ));
                 assert!(matches!(
                     lhs.as_ref(),
                     Expr::Num {
                         tp: Type::I64,
-                        value: 4
+                        value: WithSpan { value: 4, .. }
                     }
                 ));
                 assert!(matches!(
                     rhs.as_ref(),
                     Expr::Num {
                         tp: Type::I64,
-                        value: 5
+                        value: WithSpan { value: 5, .. }
                     }
                 ));
             }
@@ -545,30 +554,42 @@ mod tests {
         assert!(matches!(expr, Expr::Binary { .. }));
         match expr {
             Expr::Binary { op, lhs, rhs } => {
-                assert!(matches!(op, BinaryOp::Plus));
+                assert!(matches!(
+                    op,
+                    WithSpan {
+                        value: BinaryOp::Plus,
+                        ..
+                    }
+                ));
                 assert!(matches!(
                     lhs.as_ref(),
                     Expr::Num {
                         tp: Type::I64,
-                        value: 4
+                        value: WithSpan { value: 4, .. }
                     }
                 ));
                 assert!(matches!(rhs.as_ref(), Expr::Binary { .. }));
                 match rhs.as_ref() {
                     Expr::Binary { op, lhs, rhs } => {
-                        assert!(matches!(op, BinaryOp::Mul));
+                        assert!(matches!(
+                            op,
+                            WithSpan {
+                                value: BinaryOp::Mul,
+                                ..
+                            }
+                        ));
                         assert!(matches!(
                             lhs.as_ref(),
                             Expr::Num {
                                 tp: Type::I64,
-                                value: 5
+                                value: WithSpan { value: 5, .. }
                             }
                         ));
                         assert!(matches!(
                             rhs.as_ref(),
                             Expr::Num {
                                 tp: Type::I64,
-                                value: 6
+                                value: WithSpan { value: 6, .. }
                             }
                         ));
                     }
@@ -591,7 +612,7 @@ mod tests {
             block[0],
             Stmt::Expr(Expr::Num {
                 tp: Type::I64,
-                value: 42
+                value: WithSpan { value: 42, .. }
             })
         ));
 
@@ -605,13 +626,13 @@ mod tests {
         assert!(matches!(block[0], Stmt::Declare { .. }));
         match &block[0] {
             Stmt::Declare { name, tp, value } => {
-                assert_eq!(name.as_str(), "x");
-                assert_eq!(*tp, Type::I64);
+                assert_eq!(name.value.as_str(), "x");
+                assert_eq!(tp.value, Type::I64);
                 assert!(matches!(
                     value,
                     Expr::Num {
                         tp: Type::I64,
-                        value: 4
+                        value: WithSpan { value: 4, .. }
                     }
                 ));
             }
@@ -621,13 +642,13 @@ mod tests {
         assert!(matches!(block[1], Stmt::Declare { .. }));
         match &block[1] {
             Stmt::Declare { name, tp, value } => {
-                assert_eq!(name.as_str(), "y");
-                assert_eq!(*tp, Type::Undef);
+                assert_eq!(name.value.as_str(), "y");
+                assert_eq!(tp.value, Type::Undef);
                 assert!(matches!(
                     value,
                     Expr::Num {
                         tp: Type::I64,
-                        value: 2
+                        value: WithSpan { value: 2, .. }
                     }
                 ));
             }
@@ -638,7 +659,7 @@ mod tests {
             block[2],
             Stmt::Expr(Expr::Num {
                 tp: Type::I64,
-                value: 42
+                value: WithSpan { value: 42, .. }
             })
         ));
     }

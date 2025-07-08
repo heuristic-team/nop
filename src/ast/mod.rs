@@ -1,15 +1,17 @@
 use std::fmt::Display;
 
-use crate::lexer::Span;
+use crate::lexer::{Span, WithSpan};
 use crate::typesystem::types::*;
 
 pub mod print;
 
+pub type FnParam = (WithSpan<String>, WithSpan<Type>);
+
 #[derive(Debug)]
 pub struct FnDecl {
-    pub name: String,
-    pub tp: Type,
-    pub params: Vec<(String, Type)>,
+    pub name: WithSpan<String>,
+    pub tp: WithSpan<Type>,
+    pub params: Vec<FnParam>,
     pub body: Block,
 }
 
@@ -17,7 +19,11 @@ pub type Block = Vec<Stmt>;
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Declare { name: String, tp: Type, value: Expr },
+    Declare {
+        name: WithSpan<String>,
+        tp: WithSpan<Type>,
+        value: Expr,
+    },
     Expr(Expr),
 }
 
@@ -49,11 +55,11 @@ impl BinaryOp {
 pub enum Expr {
     Num {
         tp: Type,
-        value: u64,
+        value: WithSpan<u64>,
     },
     Ref {
         tp: Type,
-        name: String,
+        name: WithSpan<String>,
     },
     Call {
         callee: Box<Expr>,
@@ -64,7 +70,7 @@ pub enum Expr {
     //     operand: Box<Expr>,
     // },
     Binary {
-        op: BinaryOp,
+        op: WithSpan<BinaryOp>,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
