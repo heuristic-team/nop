@@ -3,35 +3,14 @@ use super::{Span, WithSpan};
 
 pub type Lexeme = WithSpan<Token>;
 
-pub trait Lexemes: IntoIterator<Item = Lexeme> {
-    fn is_eof(&self) -> bool;
-    fn next(&mut self) -> Lexeme;
-    fn peek(&self) -> Lexeme;
-    fn nth(&mut self, n: usize) -> Lexeme;
-    fn peek_nth(&self, n: usize) -> Lexeme;
-}
-
-pub struct DefaultLexemes {
+#[derive(Debug)]
+pub struct Lexemes {
     lexemes: Vec<Lexeme>,
     offset: usize,
     eof_span: Span,
 }
 
-impl DefaultLexemes {
-    pub fn new(lexemes: Vec<Lexeme>, eof_span: Span) -> Self {
-        Self {
-            lexemes,
-            offset: 0,
-            eof_span,
-        }
-    }
-
-    fn eof(&self) -> Lexeme {
-        WithSpan::new(Token::EOF, self.eof_span.clone())
-    }
-}
-
-impl<'a> IntoIterator for &'a DefaultLexemes {
+impl<'a> IntoIterator for &'a Lexemes {
     type Item = &'a Lexeme;
     type IntoIter = std::slice::Iter<'a, Lexeme>;
 
@@ -40,7 +19,7 @@ impl<'a> IntoIterator for &'a DefaultLexemes {
     }
 }
 
-impl IntoIterator for DefaultLexemes {
+impl IntoIterator for Lexemes {
     type Item = Lexeme;
     type IntoIter = std::vec::IntoIter<Lexeme>;
 
@@ -49,27 +28,39 @@ impl IntoIterator for DefaultLexemes {
     }
 }
 
-impl Lexemes for DefaultLexemes {
-    fn is_eof(&self) -> bool {
+impl Lexemes {
+    pub fn new(lexemes: Vec<Lexeme>, eof_span: Span) -> Self {
+        Self {
+            lexemes,
+            offset: 0,
+            eof_span,
+        }
+    }
+
+    pub fn eof(&self) -> Lexeme {
+        WithSpan::new(Token::EOF, self.eof_span.clone())
+    }
+
+    pub fn is_eof(&self) -> bool {
         self.offset >= self.lexemes.len()
     }
 
-    fn peek(&self) -> Lexeme {
+    pub fn peek(&self) -> Lexeme {
         self.peek_nth(0)
     }
 
-    fn peek_nth(&self, n: usize) -> Lexeme {
+    pub fn peek_nth(&self, n: usize) -> Lexeme {
         self.lexemes
             .get(self.offset + n)
             .map(|l| l.clone())
             .unwrap_or(self.eof())
     }
 
-    fn next(&mut self) -> Lexeme {
+    pub fn next(&mut self) -> Lexeme {
         self.nth(0)
     }
 
-    fn nth(&mut self, n: usize) -> Lexeme {
+    pub fn nth(&mut self, n: usize) -> Lexeme {
         let res = self.peek_nth(n);
         if let Token::EOF = res.value {
             self.offset = self.lexemes.len();

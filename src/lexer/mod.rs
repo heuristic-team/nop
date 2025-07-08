@@ -9,7 +9,6 @@ mod token;
 pub use token::Token;
 
 mod lexemes;
-use lexemes::DefaultLexemes;
 pub use lexemes::{Lexeme, Lexemes};
 
 // TODO: maybe unhardcode 2 spaces for block. Will have to think about it.
@@ -326,10 +325,10 @@ fn perform(s: &str) -> LexerCtx {
     ctx
 }
 
-pub fn lex(s: &str) -> impl Lexemes {
+pub fn lex(s: &str) -> Lexemes {
     let ctx = perform(s);
     let eof_span = ctx.eof_span(s.len());
-    DefaultLexemes::new(ctx.ret, eof_span)
+    Lexemes::new(ctx.ret, eof_span)
 }
 
 impl Display for Token {
@@ -376,7 +375,7 @@ mod tests {
         }
     }
 
-    fn count_token(lexemes: &impl Lexemes, token: Token) -> usize {
+    fn count_token(lexemes: &Lexemes, token: Token) -> usize {
         let mut res = 0;
         let mut i = 0;
         loop {

@@ -7,8 +7,8 @@ pub use res::ParseError;
 use res::Res;
 
 #[derive(Debug)]
-pub struct Parser<L: Lexemes> {
-    lexemes: L,
+pub struct Parser {
+    lexemes: Lexemes,
 }
 
 macro_rules! filter_token {
@@ -41,14 +41,16 @@ macro_rules! expected {
     };
 }
 
-impl<L: Lexemes> Parser<L> {
-    pub fn new(lexemes: L) -> Self {
+impl Parser {
+    pub fn new(lexemes: Lexemes) -> Self {
         Self { lexemes }
     }
 
     pub fn parse(&mut self) -> Res<Vec<FnDecl>> {
         let mut decls = Vec::new();
         while !self.lexemes.is_eof() {
+            self.eat_while(filter_token!(Token::EOL));
+
             match self.parse_fn_decl() {
                 Ok(decl) => decls.push(decl),
                 Err(err) => return Err(err),
@@ -372,7 +374,7 @@ mod tests {
     use super::*;
     use crate::lexer::lex;
 
-    fn create_parser(input: &'static str) -> Parser<impl Lexemes> {
+    fn create_parser(input: &'static str) -> Parser {
         Parser::new(lex(input))
     }
 
