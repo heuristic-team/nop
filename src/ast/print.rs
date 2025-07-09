@@ -37,8 +37,8 @@ fn print_expr(expr: &Expr, depth: u8) {
     match expr {
         Expr::Num { tp, value } => println!("{} of type {}", value.value, tp),
         Expr::Ref { tp, name } => println!("{} of type {}", name.value, tp),
-        Expr::Call { callee, args } => {
-            println!("call");
+        Expr::Call { tp, callee, args } => {
+            println!("call with result type {tp}");
             print_expr(&callee, depth + 1);
             make_offset(depth + 1);
             println!("with args");
@@ -47,8 +47,8 @@ fn print_expr(expr: &Expr, depth: u8) {
             }
             make_offset(depth);
         }
-        Expr::Binary { op, lhs, rhs } => {
-            println!("{}", op.value);
+        Expr::Binary { tp, op, lhs, rhs } => {
+            println!("{} with result type {tp}", op.value);
             print_expr(lhs, depth + 1);
             print_expr(rhs, depth + 1);
         }

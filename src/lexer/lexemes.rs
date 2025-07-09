@@ -1,3 +1,5 @@
+use std::slice::IterMut;
+
 use super::Token;
 use super::{Span, WithSpan};
 
@@ -16,6 +18,15 @@ impl<'a> IntoIterator for &'a Lexemes {
 
     fn into_iter(self) -> Self::IntoIter {
         self.lexemes.as_slice().into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Lexemes {
+    type Item = &'a mut Lexeme;
+    type IntoIter = IterMut<'a, Lexeme>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lexemes.as_mut_slice().into_iter()
     }
 }
 
@@ -52,21 +63,17 @@ impl Lexemes {
     pub fn peek_nth(&self, n: usize) -> Lexeme {
         self.lexemes
             .get(self.offset + n)
-            .map(|l| l.clone())
+            .cloned()
             .unwrap_or(self.eof())
-    }
-
-    fn advance(&mut self, n: usize) {
-        self.offset = (self.offset + n).clamp(0, self.lexemes.len());
     }
 
     pub fn next(&mut self) -> Lexeme {
         let res = self.peek();
-        self.advance(1);
+        self.skip_n(1);
         res
     }
 
     pub fn skip_n(&mut self, n: usize) {
-        self.advance(n);
+        self.offset = (self.offset + n).clamp(0, self.lexemes.len());
     }
 }

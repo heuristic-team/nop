@@ -62,6 +62,7 @@ pub enum Expr {
         name: WithSpan<String>,
     },
     Call {
+        tp: Type,
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
@@ -70,6 +71,7 @@ pub enum Expr {
     //     operand: Box<Expr>,
     // },
     Binary {
+        tp: Type,
         op: WithSpan<BinaryOp>,
         lhs: Box<Expr>,
         rhs: Box<Expr>,

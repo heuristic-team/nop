@@ -320,6 +320,7 @@ impl Parser {
         self.get(token!(Token::RParen), expected!(Token::RParen))?;
 
         Ok(Expr::Call {
+            tp: Type::Undef,
             callee: Box::new(callee),
             args,
         })
@@ -348,6 +349,7 @@ impl Parser {
 
             lhs = Expr::Binary {
                 op,
+                tp: Type::Undef,
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             };
@@ -424,7 +426,7 @@ mod tests {
         assert!(matches!(expr, Expr::Call { .. }));
 
         match expr {
-            Expr::Call { callee, args } => {
+            Expr::Call { callee, args, .. } => {
                 assert!(matches!(
                     *callee,
                     Expr::Num {
@@ -444,7 +446,7 @@ mod tests {
         assert!(matches!(expr, Expr::Call { .. }));
 
         match expr {
-            Expr::Call { callee, args } => {
+            Expr::Call { callee, args, .. } => {
                 assert!(matches!(
                     *callee,
                     Expr::Num {
@@ -510,7 +512,7 @@ mod tests {
 
         assert!(matches!(expr, Expr::Binary { .. }));
         match expr {
-            Expr::Binary { op, lhs, rhs } => {
+            Expr::Binary { op, lhs, rhs, .. } => {
                 assert!(matches!(
                     op,
                     WithSpan {
@@ -546,7 +548,7 @@ mod tests {
 
         assert!(matches!(expr, Expr::Binary { .. }));
         match expr {
-            Expr::Binary { op, lhs, rhs } => {
+            Expr::Binary { op, lhs, rhs, .. } => {
                 assert!(matches!(
                     op,
                     WithSpan {
@@ -563,7 +565,7 @@ mod tests {
                 ));
                 assert!(matches!(rhs.as_ref(), Expr::Binary { .. }));
                 match rhs.as_ref() {
-                    Expr::Binary { op, lhs, rhs } => {
+                    Expr::Binary { op, lhs, rhs, .. } => {
                         assert!(matches!(
                             op,
                             WithSpan {
