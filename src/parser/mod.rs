@@ -11,7 +11,7 @@ pub struct Parser {
     lexemes: Lexemes,
 }
 
-macro_rules! filter_token {
+macro_rules! token {
     ($($p:pat),*) => {
         |_token|
         {
@@ -21,9 +21,6 @@ macro_rules! filter_token {
             }
         }
     };
-}
-
-macro_rules! filter_map_token {
     ($($p:pat => $e:expr),*) => {
         |_token|
         {
@@ -49,7 +46,7 @@ impl Parser {
     pub fn parse(&mut self) -> Res<Vec<FnDecl>> {
         let mut decls = Vec::new();
         while !self.lexemes.is_eof() {
-            self.eat_while(filter_token!(Token::EOL));
+            self.eat_while(token!(Token::EOL));
 
             match self.parse_fn_decl() {
                 Ok(decl) => decls.push(decl),
@@ -93,25 +90,24 @@ impl Parser {
         matcher: impl FnOnce(Token) -> Option<T>,
         expected: Vec<String>,
     ) -> Res<WithSpan<T>> {
-        let ws = self.lexemes.next();
-        if let Some(res) = matcher(ws.value.clone()) {
-            Ok(ws.replace(res))
+        let WithSpan { value: token, span } = self.lexemes.next();
+        let formatted_token = token.to_str();
+
+        if let Some(res) = matcher(token) {
+            Ok(WithSpan::new(res, span))
         } else {
-            let err = ParseError::new(expected, ws.value.to_string(), ws.span);
+            let err = ParseError::new(expected, formatted_token.to_string(), span);
             Err(err)
         }
     }
 
     fn parse_id(&mut self) -> Res<WithSpan<String>> {
-        self.get_map(
-            filter_map_token!(Token::Id(id) => id),
-            expected!("identifier"),
-        )
+        self.get_map(token!(Token::Id(id) => id), expected!("identifier"))
     }
 
     fn parse_type(&mut self) -> Res<WithSpan<Type>> {
         let WithSpan { value: id, span } =
-            self.get_map(filter_map_token!(Token::Id(id) => id), expected!("type"))?;
+            self.get_map(token!(Token::Id(id) => id), expected!("type"))?;
 
         let tp = match Type::from_str(&id) {
             Some(tp) => Ok(tp),
@@ -122,7 +118,7 @@ impl Parser {
     }
 
     fn parse_fn_decl(&mut self) -> Res<FnDecl> {
-        self.get(filter_token!(Token::Fn), expected!(Token::Fn))?;
+        self.get(token!(Token::Fn), expected!(Token::Fn))?;
 
         let name = self.parse_id()?;
         let params = self.parse_fn_params()?;
@@ -137,7 +133,7 @@ impl Parser {
             WithSpan::new(Type::Unit, tp_span)
         };
 
-        self.get(filter_token!(Token::Assign), expected!(Token::Assign))?;
+        self.get(token!(Token::Assign), expected!(Token::Assign))?;
 
         let body = self.parse_block_or_expr()?;
 
@@ -152,22 +148,22 @@ impl Parser {
     }
 
     fn parse_fn_params(&mut self) -> Res<Vec<FnParam>> {
-        self.get(filter_token!(Token::LParen), expected!(Token::LParen))?;
+        self.get(token!(Token::LParen), expected!(Token::LParen))?;
 
         let mut res = Vec::new();
 
         while Token::RParen != self.lexemes.peek().value {
             let name = self.parse_id()?;
-            self.get(filter_token!(Token::Colon), expected!(Token::Colon))?;
+            self.get(token!(Token::Colon), expected!(Token::Colon))?;
 
             let tp = self.parse_type()?;
 
             res.push((name, tp));
 
             // TODO: trailing comma
-            self.eat_if(filter_token!(Token::Comma));
+            self.eat_if(token!(Token::Comma));
         }
-        self.get(filter_token!(Token::RParen), expected!(Token::RParen))?;
+        self.get(token!(Token::RParen), expected!(Token::RParen))?;
 
         Ok(res)
     }
@@ -198,23 +194,20 @@ impl Parser {
             let expr = self.parse_expr()?;
             let stmt = Stmt::Expr(expr);
             let body = vec![stmt];
-            self.get(filter_token!(Token::EOL), expected!(Token::EOL))?;
+            self.get(token!(Token::EOL), expected!(Token::EOL))?;
             return Ok(body);
         }
 
-        self.eat_while(filter_token!(Token::EOL));
-        self.get(
-            filter_token!(Token::ScopeStart),
-            expected!("indented block"),
-        )?;
+        self.eat_while(token!(Token::EOL));
+        self.get(token!(Token::ScopeStart), expected!("indented block"))?;
 
         let mut body = Vec::new();
         while self.lexemes.peek().value != Token::ScopeEnd {
-            self.eat_while(filter_token!(Token::EOL));
+            self.eat_while(token!(Token::EOL));
             body.push(self.parse_stmt()?);
         }
 
-        self.get(filter_token!(Token::ScopeEnd), expected!("scope end"))
+        self.get(token!(Token::ScopeEnd), expected!("scope end"))
             .expect("scopes should be closed");
 
         Ok(body)
@@ -229,7 +222,7 @@ impl Parser {
 
         let WithSpan { value: token, span } = self.lexemes.peek();
         match token {
-            Token::EOL => self.eat_while(filter_token!(Token::EOL)),
+            Token::EOL => self.eat_while(token!(Token::EOL)),
             Token::ScopeEnd => {}
             t => {
                 return Err(ParseError::new(
@@ -247,7 +240,7 @@ impl Parser {
 
         let name = self.parse_id()?;
         let dummy_span = self
-            .get(filter_token!(Token::Define), expected!(Token::Define))?
+            .get(token!(Token::Define), expected!(Token::Define))?
             .span;
         let value = self.parse_expr()?;
 
@@ -262,9 +255,9 @@ impl Parser {
         // NAME: TYPE = VALUE
 
         let name = self.parse_id()?;
-        self.get(filter_token!(Token::Colon), expected!(Token::Colon))?;
+        self.get(token!(Token::Colon), expected!(Token::Colon))?;
         let tp = self.parse_type()?;
-        self.get(filter_token!(Token::Assign), expected!(Token::Assign))?;
+        self.get(token!(Token::Assign), expected!(Token::Assign))?;
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare {
@@ -285,7 +278,7 @@ impl Parser {
             Token::LParen => {
                 self.lexemes.next();
                 let res = self.parse_expr()?;
-                self.get(filter_token!(Token::RParen), expected!(Token::RParen))?;
+                self.get(token!(Token::RParen), expected!(Token::RParen))?;
                 Ok(res)
             }
             Token::Id(name) => {
@@ -313,7 +306,7 @@ impl Parser {
     }
 
     fn parse_call_expr(&mut self, callee: Expr) -> Res<Expr> {
-        self.get(filter_token!(Token::LParen), expected!(Token::LParen))?;
+        self.get(token!(Token::LParen), expected!(Token::LParen))?;
 
         let mut args = Vec::new();
 
@@ -322,9 +315,9 @@ impl Parser {
             args.push(arg);
 
             // TODO: trailing comma
-            self.eat_if(filter_token!(Token::Comma));
+            self.eat_if(token!(Token::Comma));
         }
-        self.get(filter_token!(Token::RParen), expected!(Token::RParen))?;
+        self.get(token!(Token::RParen), expected!(Token::RParen))?;
 
         Ok(Expr::Call {
             callee: Box::new(callee),

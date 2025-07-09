@@ -17,4 +17,4 @@ impl ParseError {
     }
 }
 
-pub(super) type Res<T> = Result<T, ParseError>;
+pub type Res<T> = Result<T, ParseError>;

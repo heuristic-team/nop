@@ -37,16 +37,16 @@ impl Lexemes {
         }
     }
 
-    pub fn eof(&self) -> Lexeme {
-        WithSpan::new(Token::EOF, self.eof_span.clone())
-    }
-
     pub fn is_eof(&self) -> bool {
         self.offset >= self.lexemes.len()
     }
 
     pub fn peek(&self) -> Lexeme {
         self.peek_nth(0)
+    }
+
+    fn eof(&self) -> Lexeme {
+        WithSpan::new(Token::EOF, self.eof_span)
     }
 
     pub fn peek_nth(&self, n: usize) -> Lexeme {
@@ -56,17 +56,17 @@ impl Lexemes {
             .unwrap_or(self.eof())
     }
 
-    pub fn next(&mut self) -> Lexeme {
-        self.nth(0)
+    fn advance(&mut self, n: usize) {
+        self.offset = (self.offset + n).clamp(0, self.lexemes.len());
     }
 
-    pub fn nth(&mut self, n: usize) -> Lexeme {
-        let res = self.peek_nth(n);
-        if let Token::EOF = res.value {
-            self.offset = self.lexemes.len();
-        } else {
-            self.offset += n + 1;
-        }
+    pub fn next(&mut self) -> Lexeme {
+        let res = self.peek();
+        self.advance(1);
         res
+    }
+
+    pub fn skip_n(&mut self, n: usize) {
+        self.advance(n);
     }
 }

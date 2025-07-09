@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -86,17 +85,17 @@ impl LexerCtx {
         self.indent = indent;
     }
 
-    fn close_indents(&mut self, file_size: usize) {
+    fn close_indents(&mut self) {
         for _ in 0..self.indent {
-            let loc = Location::new(self.line, file_size);
+            let loc = Location::new(self.line, self.file_size);
             let span = Span::new(loc, loc);
             let lexeme = Lexeme::new(Token::ScopeEnd, span);
             self.add_lexeme(lexeme);
         }
     }
 
-    fn eof_span(&self, file_size: usize) -> Span {
-        let loc = Location::new(self.line, file_size);
+    fn eof_span(&self) -> Span {
+        let loc = Location::new(self.line, self.file_size);
         Span::new(loc, loc)
     }
 
@@ -320,43 +319,15 @@ fn perform(s: &str) -> LexerCtx {
     let mut ctx = LexerCtx::new(s.len());
 
     matcher(&mut iter, &mut ctx);
-    ctx.close_indents(s.len());
+    ctx.close_indents();
 
     ctx
 }
 
 pub fn lex(s: &str) -> Lexemes {
     let ctx = perform(s);
-    let eof_span = ctx.eof_span(s.len());
+    let eof_span = ctx.eof_span();
     Lexemes::new(ctx.ret, eof_span)
-}
-
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Token::EOF => write!(f, "end of input"),
-            Token::Id(_) => write!(f, "identifier"),
-            Token::Num(_) => write!(f, "number"),
-            Token::Assign => write!(f, "`=`"),
-            Token::Define => write!(f, "`:=`"),
-            Token::Eq => write!(f, "`==`"),
-            Token::Fn => write!(f, "`fn`"),
-            // Token::Let => write!(f, "`let`"),
-            Token::Type => write!(f, "`type`"),
-            Token::EOL => write!(f, "end of line"),
-            Token::ScopeStart => write!(f, "scope start"),
-            Token::ScopeEnd => write!(f, "scope end"),
-            Token::LParen => write!(f, "`(`"),
-            Token::RParen => write!(f, "`)`"),
-            Token::Quote => write!(f, "`\"`"),
-            Token::Dot => write!(f, "`.`"),
-            Token::Comma => write!(f, "`,`"),
-            Token::Colon => write!(f, "`:`"),
-            Token::Plus => write!(f, "`+`"),
-            Token::Minus => write!(f, "`-`"),
-            Token::Mul => write!(f, "`*`"),
-        }
-    }
 }
 
 #[cfg(test)]
