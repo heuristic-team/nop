@@ -7,6 +7,7 @@ mod cli;
 mod ir;
 mod lexer;
 mod parser;
+mod sema;
 mod typesystem;
 
 fn main() {
@@ -19,7 +20,16 @@ fn main() {
             for decl in &decls {
                 crate::ast::print::print_decl(decl)
             }
+            let ast_res = sema::run(decls);
+            if let Some(diags) = ast_res.get_diagnostics() {
+                for diag in diags {
+                    // TODO: print diagnositcs
+                }
+            }
+            if let Some(ast) = ast_res.extract_value() {
+                // TODO: pass AST to translator
+            }
         }
-        Err(err) => todo!(), // print error nicely
+        Err(err) => todo!(), // TODO: print error nicely
     }
 }

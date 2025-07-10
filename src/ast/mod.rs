@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::lexer::{Span, WithSpan};
@@ -5,11 +6,13 @@ use crate::typesystem::types::*;
 
 pub mod print;
 
+pub type AST = HashMap<String, FnDecl>;
+
 pub type FnParam = (WithSpan<String>, WithSpan<Type>);
 
 #[derive(Debug)]
 pub struct FnDecl {
-    pub name: WithSpan<String>,
+    pub name: WithSpan<String>, // TODO: do we really need this field?
     pub tp: WithSpan<Type>,
     pub params: Vec<FnParam>,
     pub body: Block,
