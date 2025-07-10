@@ -1,7 +1,5 @@
-cargo-features = ["test-dummy-unstable"]
-
 [package]
-name = "shush"
+name = "nop"
 version = "0.1.0"
 edition = "2024"
 
