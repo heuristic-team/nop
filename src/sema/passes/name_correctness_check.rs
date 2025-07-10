@@ -7,69 +7,69 @@ use crate::ast::*;
 use crate::lexer::WithSpan;
 use crate::sema::Diagnostic;
 
-pub struct NameCorrectnessCheck();
+pub struct NameCorrectnessCheck {}
 
 type Ctx<'a> = HashSet<&'a str>;
 
-impl NameCorrectnessCheck {
-    fn check_expr<'a>(&mut self, ctx: &Ctx<'a>, expr: &'a Expr) -> Vec<Diagnostic> {
-        match expr {
-            Expr::Num { .. } => vec![],
-            Expr::Ref { name, .. } => {
-                if !ctx.contains(name.value.as_str()) {
-                    vec![Diagnostic::new(
-                        format!("reference to undefined name {}", name.value),
-                        name.span,
-                        vec![],
-                    )]
-                } else {
-                    vec![]
-                }
+fn check_expr<'a>(ctx: &Ctx<'a>, expr: &'a Expr) -> Vec<Diagnostic> {
+    match expr {
+        Expr::Num { .. } => vec![],
+        Expr::Ref { name, .. } => {
+            if !ctx.contains(name.value.as_str()) {
+                vec![Diagnostic::new(
+                    format!("reference to undefined name {}", name.value),
+                    name.span,
+                    vec![],
+                )]
+            } else {
+                vec![]
             }
-            Expr::Call { callee, args, .. } => {
-                let mut res = vec![];
-                res.append(&mut self.check_expr(ctx, callee));
-                for arg in args {
-                    res.append(&mut self.check_expr(ctx, arg));
-                }
-                res
+        }
+        Expr::Call { callee, args, .. } => {
+            let mut res = check_expr(ctx, callee);
+            for arg in args {
+                res.append(&mut check_expr(ctx, arg));
             }
-            Expr::Binary { lhs, rhs, .. } => {
-                let mut res = vec![];
-                res.append(&mut self.check_expr(ctx, lhs));
-                res.append(&mut self.check_expr(ctx, rhs));
-                res
-            }
+            res
+        }
+        Expr::Binary { lhs, rhs, .. } => {
+            let mut res = check_expr(ctx, lhs);
+            res.append(&mut check_expr(ctx, rhs));
+            res
         }
     }
+}
 
-    fn check_decl<'a>(&mut self, mut ctx: Ctx<'a>, decl: &'a FnDecl) -> Vec<Diagnostic> {
-        let mut res = Vec::new();
+fn check_decl<'a>(mut ctx: Ctx<'a>, decl: &'a FnDecl) -> Vec<Diagnostic> {
+    let mut res = Vec::new();
 
-        for (WithSpan { value: name, .. }, _) in decl.params.iter() {
-            ctx.insert(&name);
-        }
-
-        for stmt in &decl.body {
-            let mut new_diags = match stmt {
-                Stmt::Declare { name, value, .. } => {
-                    let new_diags = self.check_expr(&ctx, value);
-                    ctx.insert(&name.value);
-                    new_diags
-                }
-                Stmt::Expr(expr) => self.check_expr(&ctx, expr),
-            };
-
-            res.append(&mut new_diags);
-        }
-
-        res
+    for FnParam {
+        name: WithSpan { value: name, .. },
+        ..
+    } in decl.params.iter()
+    {
+        ctx.insert(&name);
     }
+
+    for stmt in &decl.body {
+        let mut new_diags = match stmt {
+            Stmt::Declare { name, value, .. } => {
+                let new_diags = check_expr(&ctx, value);
+                ctx.insert(&name.value);
+                new_diags
+            }
+            Stmt::Expr(expr) => check_expr(&ctx, expr),
+        };
+
+        res.append(&mut new_diags);
+    }
+
+    res
 }
 
 impl Pass for NameCorrectnessCheck {
     type Input = Vec<FnDecl>;
-    type Output = HashMap<String, FnDecl>;
+    type Output = AST;
 
     fn run(&mut self, decls: Self::Input) -> Res<Self::Output> {
         let mut res: Self::Output = HashMap::new();
@@ -90,7 +90,7 @@ impl Pass for NameCorrectnessCheck {
 
         let ctx = res.keys().map(|s| s.as_str()).collect::<Ctx>();
         for decl in res.values() {
-            let mut new_diags = self.check_decl(ctx.clone(), decl);
+            let mut new_diags = check_decl(ctx.clone(), decl);
             diags.append(&mut new_diags);
         }
 

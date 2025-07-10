@@ -11,5 +11,7 @@ pub use res::{Diagnostic, Res};
 use crate::ast::*;
 
 pub fn run(decls: Vec<FnDecl>) -> Res<AST> {
-    NameCorrectnessCheck().run(decls)
+    NameCorrectnessCheck {}
+        .and_then(AssignmentCorrectnessCheck {})
+        .run(decls)
 }

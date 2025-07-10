@@ -1,12 +1,16 @@
 use crate::ast::*;
 
+fn fmt_mut(is_mut: bool) -> &'static str {
+    if is_mut { "mut " } else { "" }
+}
+
 pub fn print_decl(decl: &FnDecl) {
     print!("fn {}(", decl.name.value);
-    if let Some(((name, tp), init)) = decl.params.split_last() {
-        for (name, tp) in init {
-            print!("{}: {}, ", name.value, tp.value);
+    if let Some((FnParam { is_mut, name, tp }, init)) = decl.params.split_last() {
+        for FnParam { is_mut, name, tp } in init {
+            print!("{}{}: {}, ", fmt_mut(*is_mut), name.value, tp.value);
         }
-        print!("{}: {}", name.value, tp.value);
+        print!("{}{}: {}", fmt_mut(*is_mut), name.value, tp.value);
     }
     println!(") {} =", decl.tp.value);
 
@@ -30,12 +34,7 @@ fn print_stmt(stmt: &Stmt, depth: u8) {
             value,
         } => {
             make_offset(depth);
-            println!(
-                "let{} {}: {} =",
-                if *is_mut { " mut" } else { "" },
-                name.value,
-                tp.value
-            );
+            println!("let {}{}: {} =", fmt_mut(*is_mut), name.value, tp.value);
             print_expr(value, depth + 1);
         }
         Stmt::Expr(expr) => print_expr(expr, depth),

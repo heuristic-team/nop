@@ -155,12 +155,14 @@ impl Parser {
         let mut res = Vec::new();
 
         while Token::RParen != self.lexemes.peek().value {
+            let is_mut = self.eat_if(token!(Token::Mut));
+
             let name = self.parse_id()?;
             self.get(token!(Token::Colon), expected!(Token::Colon))?;
 
             let tp = self.parse_type()?;
 
-            res.push((name, tp));
+            res.push(FnParam { is_mut, name, tp });
 
             // TODO: trailing comma
             self.eat_if(token!(Token::Comma));
@@ -347,6 +349,8 @@ impl Parser {
     }
 
     fn parse_full_expr(&mut self, prev_prec: OpPrecedence, mut lhs: Expr) -> Res<Expr> {
+        // TODO: handle operator associativity
+
         loop {
             let cur_prec = match self.get_cur_op_prec() {
                 None => return Ok(lhs),
@@ -378,6 +382,7 @@ fn bin_op_from_token(token: &Token) -> Option<BinaryOp> {
         Token::Plus => Some(BinaryOp::Plus),
         Token::Minus => Some(BinaryOp::Minus),
         Token::Mul => Some(BinaryOp::Mul),
+        Token::Assign => Some(BinaryOp::Assign),
         _ => None,
     }
 }
@@ -407,12 +412,13 @@ mod tests {
         assert!(res.is_ok());
         let params = res.unwrap();
         assert_eq!(params.len(), 1);
-        assert_eq!(params[0].0.value, "foo".to_string());
-        assert_eq!(params[0].1.value, Type::Bool);
+        assert_eq!(params[0].name.value, "foo".to_string());
+        assert_eq!(params[0].tp.value, Type::Bool);
+        assert!(!params[0].is_mut);
         assert_eq!(parser.lexemes.next().value, Token::Num(37));
 
         // multiple params
-        let mut parser = create_parser("(foo: bool, bar: i64, c: i64) fn");
+        let mut parser = create_parser("(foo: bool, mut bar: i64, c: i64) fn");
         let res = parser.parse_fn_params();
         assert!(res.is_ok());
         let params = res.unwrap();
@@ -420,12 +426,12 @@ mod tests {
         assert_eq!(
             params
                 .into_iter()
-                .map(|p| (p.0.value, p.1.value))
-                .collect::<Vec<(String, Type)>>(),
+                .map(|p| (p.is_mut, p.name.value, p.tp.value))
+                .collect::<Vec<(bool, String, Type)>>(),
             vec![
-                ("foo".to_string(), Type::Bool),
-                ("bar".to_string(), Type::I64),
-                ("c".to_string(), Type::I64)
+                (false, "foo".to_string(), Type::Bool),
+                (true, "bar".to_string(), Type::I64),
+                (false, "c".to_string(), Type::I64)
             ]
         );
         assert_eq!(parser.lexemes.next().value, Token::Fn);

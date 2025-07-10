@@ -20,6 +20,7 @@ fn main() {
             for decl in &decls {
                 crate::ast::print::print_decl(decl)
             }
+
             let ast_res = sema::run(decls);
             if let Some(diags) = ast_res.get_diagnostics() {
                 for diag in diags {
@@ -30,6 +31,12 @@ fn main() {
                 // TODO: pass AST to translator
             }
         }
-        Err(err) => todo!(), // TODO: print error nicely
+        Err(err) => {
+            // TODO: print error nicely
+            eprintln!(
+                "parse error:\nexpected {:?}, but got {}",
+                err.expected, err.actual
+            );
+        }
     }
 }

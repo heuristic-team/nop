@@ -8,7 +8,12 @@ pub mod print;
 
 pub type AST = HashMap<String, FnDecl>;
 
-pub type FnParam = (WithSpan<String>, WithSpan<Type>);
+#[derive(Debug)]
+pub struct FnParam {
+    pub is_mut: bool,
+    pub name: WithSpan<String>,
+    pub tp: WithSpan<Type>,
+}
 
 #[derive(Debug)]
 pub struct FnDecl {
@@ -40,6 +45,7 @@ pub type OpPrecedence = u8;
 
 #[derive(Debug, Clone, Copy)]
 pub enum BinaryOp {
+    Assign,
     Plus,
     Minus,
     Mul,
@@ -48,6 +54,7 @@ pub enum BinaryOp {
 impl BinaryOp {
     pub fn prec(&self) -> OpPrecedence {
         match self {
+            Self::Assign => 1,
             Self::Plus => 4,
             Self::Minus => 4,
             Self::Mul => 5,
@@ -93,6 +100,7 @@ pub struct Loop {
 impl Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            BinaryOp::Assign => write!(f, "="),
             BinaryOp::Plus => write!(f, "+"),
             BinaryOp::Minus => write!(f, "-"),
             BinaryOp::Mul => write!(f, "*"),
