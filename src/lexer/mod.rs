@@ -14,8 +14,8 @@ pub use lexemes::{Lexeme, Lexemes};
 
 const KEYWORDS: &[(Token, &str)] = &[
     (Token::Fn, "fn"),
-    // (Token::Let, "let"),
     (Token::Type, "type"),
+    (Token::Mut, "mut"),
 ];
 
 const SYMBOLS: &[(char, Token)] = &[
