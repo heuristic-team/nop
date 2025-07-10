@@ -20,6 +20,7 @@ pub type Block = Vec<Stmt>;
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Declare {
+        is_mut: bool,
         name: WithSpan<String>,
         tp: WithSpan<Type>,
         value: Expr,

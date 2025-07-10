@@ -23,9 +23,19 @@ fn make_offset(depth: u8) {
 
 fn print_stmt(stmt: &Stmt, depth: u8) {
     match stmt {
-        Stmt::Declare { name, tp, value } => {
+        Stmt::Declare {
+            is_mut,
+            name,
+            tp,
+            value,
+        } => {
             make_offset(depth);
-            println!("let {}: {} =", name.value, tp.value);
+            println!(
+                "let{} {}: {} =",
+                if *is_mut { " mut" } else { "" },
+                name.value,
+                tp.value
+            );
             print_expr(value, depth + 1);
         }
         Stmt::Expr(expr) => print_expr(expr, depth),

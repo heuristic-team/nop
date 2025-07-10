@@ -57,11 +57,13 @@ impl Parser {
         Ok(decls)
     }
 
-    fn eat_if(&mut self, matcher: impl FnOnce(&Token) -> bool) {
+    fn eat_if(&mut self, matcher: impl FnOnce(&Token) -> bool) -> bool {
         let WithSpan { value: token, .. } = self.lexemes.peek();
-        if matcher(&token) {
+        let res = matcher(&token);
+        if res {
             self.lexemes.next();
         }
+        res
     }
 
     fn eat_while(&mut self, mut matcher: impl FnMut(&Token) -> bool) {
@@ -214,9 +216,17 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Res<Stmt> {
-        let stmt = match (self.lexemes.peek().value, self.lexemes.peek_nth(1).value) {
-            (Token::Id(_), Token::Define) => self.parse_definition_stmt(),
-            (Token::Id(_), Token::Colon) => self.parse_declaration_stmt(),
+        let stmt = match (
+            self.lexemes.peek().value,
+            self.lexemes.peek_nth(1).value,
+            self.lexemes.peek_nth(2).value,
+        ) {
+            (Token::Mut, Token::Id(_), Token::Define) | (Token::Id(_), Token::Define, _) => {
+                self.parse_definition_stmt()
+            }
+            (Token::Mut, Token::Id(_), Token::Colon) | (Token::Id(_), Token::Colon, _) => {
+                self.parse_declaration_stmt()
+            }
             _ => self.parse_expr().map(|x| Stmt::Expr(x)),
         }?;
 
@@ -238,6 +248,8 @@ impl Parser {
     fn parse_definition_stmt(&mut self) -> Res<Stmt> {
         // NAME := VALUE
 
+        let is_mut = self.eat_if(token!(Token::Mut));
+
         let name = self.parse_id()?;
         let dummy_span = self
             .get(token!(Token::Define), expected!(Token::Define))?
@@ -245,6 +257,7 @@ impl Parser {
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare {
+            is_mut,
             name: name,
             tp: WithSpan::new(Type::Undef, dummy_span),
             value,
@@ -254,6 +267,8 @@ impl Parser {
     fn parse_declaration_stmt(&mut self) -> Res<Stmt> {
         // NAME: TYPE = VALUE
 
+        let is_mut = self.eat_if(token!(Token::Mut));
+
         let name = self.parse_id()?;
         self.get(token!(Token::Colon), expected!(Token::Colon))?;
         let tp = self.parse_type()?;
@@ -261,6 +276,7 @@ impl Parser {
         let value = self.parse_expr()?;
 
         Ok(Stmt::Declare {
+            is_mut,
             name: name,
             tp: tp,
             value,
@@ -611,7 +627,7 @@ mod tests {
             })
         ));
 
-        let mut parser = create_parser("\n  x: i64 = 4\n  y := 2\n  42\n");
+        let mut parser = create_parser("\n  mut x: i64 = 4\n  y := 2\n  42\n");
         let res = parser.parse_block_or_expr();
         assert!(res.is_ok());
 
@@ -620,7 +636,13 @@ mod tests {
 
         assert!(matches!(block[0], Stmt::Declare { .. }));
         match &block[0] {
-            Stmt::Declare { name, tp, value } => {
+            Stmt::Declare {
+                is_mut,
+                name,
+                tp,
+                value,
+            } => {
+                assert!(is_mut);
                 assert_eq!(name.value.as_str(), "x");
                 assert_eq!(tp.value, Type::I64);
                 assert!(matches!(
@@ -636,7 +658,13 @@ mod tests {
 
         assert!(matches!(block[1], Stmt::Declare { .. }));
         match &block[1] {
-            Stmt::Declare { name, tp, value } => {
+            Stmt::Declare {
+                is_mut,
+                name,
+                tp,
+                value,
+            } => {
+                assert!(!is_mut);
                 assert_eq!(name.value.as_str(), "y");
                 assert_eq!(tp.value, Type::Undef);
                 assert!(matches!(
