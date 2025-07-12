@@ -2,6 +2,10 @@ use cli::get_input;
 use lexer::lex;
 use parser::Parser;
 
+use ast::print::TreePrintable;
+
+use crate::ast::FnDecl;
+
 mod ast;
 mod cli;
 mod ir;
@@ -16,9 +20,8 @@ fn main() {
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok(decls) => {
-            for decl in &decls {
-                crate::ast::print::print_decl(decl)
-            }
+            let print = <FnDecl as TreePrintable>::print_top_level;
+            decls.iter().for_each(print);
         }
         Err(err) => todo!(), // print error nicely
     }

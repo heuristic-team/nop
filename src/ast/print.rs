@@ -1,66 +1,80 @@
 use crate::ast::*;
 
-pub fn print_decl(decl: &FnDecl) {
-    print!("fn {}(", decl.name.value);
-    if let Some(((name, tp), init)) = decl.params.split_last() {
-        for (name, tp) in init {
-            print!("{}: {}, ", name.value, tp.value);
+pub trait TreePrintable {
+    fn make_offset(depth: u8) {
+        for _ in 0..depth {
+            print!("  ");
         }
-        print!("{}: {}", name.value, tp.value);
     }
-    println!(") {} =", decl.tp.value);
 
-    for stmt in &decl.body {
-        print_stmt(stmt, 1);
-    }
-}
-
-fn make_offset(depth: u8) {
-    for _ in 0..depth {
-        print!("  ");
+    fn print(&self, depth: u8);
+    fn print_top_level(&self) {
+        self.print(0);
     }
 }
 
-fn print_stmt(stmt: &Stmt, depth: u8) {
-    match stmt {
-        Stmt::Declare {
-            is_mut,
-            name,
-            tp,
-            value,
-        } => {
-            make_offset(depth);
-            println!(
-                "let{} {}: {} =",
-                if *is_mut { " mut" } else { "" },
-                name.value,
-                tp.value
-            );
-            print_expr(value, depth + 1);
-        }
-        Stmt::Expr(expr) => print_expr(expr, depth),
-    }
-}
+impl TreePrintable for FnDecl {
+    fn print(&self, depth: u8) {
+        Self::make_offset(depth);
 
-fn print_expr(expr: &Expr, depth: u8) {
-    make_offset(depth);
-    match expr {
-        Expr::Num { tp, value } => println!("{} of type {}", value.value, tp),
-        Expr::Ref { tp, name } => println!("{} of type {}", name.value, tp),
-        Expr::Call { tp, callee, args } => {
-            println!("call with result type {tp}");
-            print_expr(&callee, depth + 1);
-            make_offset(depth + 1);
-            println!("with args");
-            for arg in args {
-                print_expr(arg, depth + 2)
+        print!("fn {}(", self.name.value);
+        if let Some(((name, tp), init)) = self.params.split_last() {
+            for (name, tp) in init {
+                print!("{}: {}, ", name.value, tp.value);
             }
-            make_offset(depth);
+            print!("{}: {}", name.value, tp.value);
         }
-        Expr::Binary { tp, op, lhs, rhs } => {
-            println!("{} with result type {tp}", op.value);
-            print_expr(lhs, depth + 1);
-            print_expr(rhs, depth + 1);
+        println!(") {} =", self.tp.value);
+
+        for stmt in &self.body {
+            stmt.print(depth + 1);
+        }
+    }
+}
+
+impl TreePrintable for Stmt {
+    fn print(&self, depth: u8) {
+        match self {
+            Stmt::Declare {
+                is_mut,
+                name,
+                tp,
+                value,
+            } => {
+                Self::make_offset(depth);
+                println!(
+                    "let{} {}: {} =",
+                    if *is_mut { " mut" } else { "" },
+                    name.value,
+                    tp.value
+                );
+                value.print(depth + 1);
+            }
+            Stmt::Expr(expr) => expr.print(depth),
+        }
+    }
+}
+
+impl TreePrintable for Expr {
+    fn print(&self, depth: u8) {
+        Self::make_offset(depth);
+        match self {
+            Expr::Num { tp, value } => println!("{} of type {}", value.value, tp),
+            Expr::Ref { tp, name } => println!("{} of type {}", name.value, tp),
+            Expr::Call { tp, callee, args } => {
+                println!("call with result type {tp}");
+                callee.print(depth + 1);
+                Self::make_offset(depth + 1);
+                println!("with args");
+                for arg in args {
+                    arg.print(depth + 2);
+                }
+            }
+            Expr::Binary { tp, op, lhs, rhs } => {
+                println!("{} with result type {tp}", op.value);
+                lhs.print(depth + 1);
+                rhs.print(depth + 1);
+            }
         }
     }
 }
