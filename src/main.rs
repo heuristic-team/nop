@@ -4,6 +4,7 @@ use lexer::lex;
 mod cli;
 mod ir;
 mod lexer;
+mod typesystem;
 
 fn main() {
     let input = get_input();

@@ -1,15 +1,3 @@
-trait Value {}
-
-enum Const {
-    Int(u64),
-    Bool(bool),
-    Label(String),
-    Unit,
-}
-
-enum Operands {
-    Var,
-    Val(Const),
-}
-
-enum Instr {}
+pub mod basic_block;
+pub mod function;
+pub mod ir;
