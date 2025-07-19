@@ -3,3 +3,4 @@ pub mod function;
 pub mod generated;
 pub mod instr;
 pub mod operand;
+pub mod program;
