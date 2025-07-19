@@ -1,0 +1,20 @@
+General:
+	Custom types (type aliases, structs and enums)
+	```
+	type Foo = enum { A: int, B: bool, C: String }
+
+	fn foo(v: Foo) {
+	    match v {
+	        a: int => smth,
+	        _: bool => smth2,
+	        x => smth3, // `x` here is a wildcard
+	    }
+	}
+	```
+
+	Methods and operators. Operations on primitive types should be just binary operations, operations on custom types should be translated into defined method calls
+
+	Arrays
+
+Sema:
+	Validation of operator usage on types
