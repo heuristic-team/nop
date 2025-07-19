@@ -1,14 +1,10 @@
-use cli::get_input;
-use lexer::lex;
-use parser::Parser;
-
-mod ast;
 mod cli;
-mod ir;
-mod lexer;
-mod parser;
-mod sema;
-mod typesystem;
+use cli::get_input;
+
+use frontend::ast;
+use frontend::lexer::lex;
+use frontend::parser::Parser;
+use frontend::sema;
 
 fn main() {
     let input = get_input();
@@ -18,9 +14,7 @@ fn main() {
     match parsed {
         Ok(decls) => {
             println!("before sema:");
-            for decl in &decls {
-                crate::ast::print::print_decl(decl)
-            }
+            decls.iter().for_each(ast::print::print_decl);
             println!();
 
             let ast_res = sema::run(decls);
@@ -33,7 +27,7 @@ fn main() {
             if let Some(ast) = ast_res.extract_value() {
                 println!("after sema:");
                 for decl in ast.values() {
-                    crate::ast::print::print_decl(decl)
+                    ast::print::print_decl(decl)
                 }
 
                 // TODO: pass AST to translator

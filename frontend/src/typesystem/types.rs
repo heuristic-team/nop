@@ -40,7 +40,7 @@ impl Display for Type {
                     }
                     write!(f, "{}", last_param)?;
                 }
-                write!(f, ") {}", rettype)
+                write!(f, ") -> {}", rettype)
             }
         }
     }

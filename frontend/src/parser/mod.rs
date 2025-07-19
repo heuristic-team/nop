@@ -234,7 +234,7 @@ impl Parser {
             tp: tp,
             value: Box::new(value),
         })
-    }
+    } 
 
     fn parse_expr(&mut self) -> Res<Expr> {
         let lhs = self.parse_term()?;
