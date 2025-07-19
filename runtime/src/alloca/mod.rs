@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use mmap_rs::{Reserved, ReservedNone};
 
 pub(crate) type ptr = usize;
 
@@ -11,7 +12,11 @@ pub trait Object {
 pub trait ArenaAllocator3<T: Object> {
   const SIZE: usize;
   
-  const LOG_BLOCK_SIZE:usize;
+  const LOG_BLOCK_SIZE: usize;
+  
+  const LOG_START_ARENA_SIZE: usize;
+  
+  const LOG_MAX_ARENA_SIZE: usize;
   
   fn new(max_size: usize) -> Self;
   
@@ -32,6 +37,12 @@ pub trait Arena3<T: Object> {
   fn gray_map(&self) ->(ptr, usize);
   
   fn black_map(&self) ->(ptr, usize);
+  
+  fn live(&self) -> bool;
+  
+  fn on(&self);
+  
+  fn off(&self);
 }
 
 pub enum AllocateError {
@@ -39,42 +50,44 @@ pub enum AllocateError {
 }
 
 
-pub struct Heap<T: Ord> {
-  items: Mutex<std::collections::BTreeSet<Arc<T>>>
+pub struct Heap<'a, T: Ord> {
+  items: Mutex<std::collections::BTreeSet<&'a T>>
 }
 
-impl<T: Ord> Heap<T> {
+impl<'a, T: Ord> Heap<T> {
   pub fn new() -> Self {
     Self {items: Mutex::new(std::collections::BTreeSet::new())}
   }
   
-  pub fn insert(&mut self, item: Arc<T>) {
+  pub fn insert(&mut self, item: &'a T) {
     self.items.lock().unwrap().insert(item);
   }
   
-  pub fn del(&mut self, item: Arc<T>) {
+  pub fn del(&mut self, item: &'a T) {
     self.items.lock().unwrap().remove(&item);
   }
   
-  pub fn lower_bound(&self, n: usize) -> Arc<T> {
-    Arc::new(self.items
+  pub fn lower_bound(&self, n: usize) -> Option<&T> {
+    self.items
         .lock()
         .unwrap()
         .range(n..)
         .next()
-        .unwrap())
   }
 }
 
-pub struct HAllocator {
+pub struct HAllocator<'a, T: Object, U: Arena3<T>> {
   start: ptr,
   max_size: usize,
+  used_memory: AtomicUsize,
   
-  blocks: Box<[Option<*HedgeBlock>]>,
-  large_objects: Vec<Arc<HedgeArena>>,
+  heap: Heap<'a, HedgeArena>,
+  
+  blocks: Box<[Option<&'a HedgeBlock<'a, T, U>>]>,
+  large_objects: Vec<Arc<U>>,
 }
 
-struct HedgeBlock {
+struct HedgeBlock<'a, T: Object, U: Arena3<T>> {
   start: ptr,
   
   size: usize,
@@ -83,22 +96,21 @@ struct HedgeBlock {
   
   // only for find object by ref.
   // const
-  items: Box<[Arc<HedgeArena>]>,
+  items: Box<[&'a U]>,
   
   // dynamic
-  slots: Vec<Arc<HedgeArena>>,
+  slots: std::cell::RefCell<Vec<&'a U>>,
 }
 
-impl HedgeBlock {
+impl<T: Object, U: Arena3<T>> HedgeBlock<T, U> {
   fn new(start: ptr, size: usize, t_size: usize) -> Self {
     let count = size / t_size;
     let mut items = Vec::with_capacity(count);
     let mut slots = Vec::with_capacity(count);
     for i in 0..count {
-      let new_arena = HedgeArena::new(start + i * t_size, size);
-      let ptr_to_arena = Arc::new(new_arena);
-      items.push(Arc::clone(&ptr_to_arena));
-      slots.push(Arc::clone(&ptr_to_arena));
+      let new_arena = U::new(start + i * t_size, size);
+      items.push(&new_arena);
+      slots.push(&new_arena);
     }
     
     Self {
@@ -106,16 +118,17 @@ impl HedgeBlock {
       size,
       log_t_size,
       items: items.into_boxed_slice(),
-      slots,
+      slots: std::cell::RefCell::new(slots),
     }
   }
   
-  fn arena_by_ptr(&self, ptr: ptr) -> Arc<HedgeArena> {
+  fn arena_by_ptr(&self, ptr: ptr) -> &HedgeArena {
     assert!(self.log_t_size);
     assert!(self.start <= ptr);
     assert!(ptr < self.start + self.size);
-    Arc::clone(&self.items[(ptr - self.start) >> self.log_t_size])
+    &self.items[(ptr - self.start) >> self.log_t_size]
   }
+  
 }
 
 struct HedgeArena {
@@ -128,8 +141,10 @@ struct HedgeArena {
   // gray: Box<[u8]>,
   // black: Box<[u8]>,
   
-  live: AtomicBool,
+  live: AtomicBool, // хз пока нужен ли, мб оставлю только map, юуду смотреть на None
+  map: Option<mmap_rs::MmapMut>,
   
+  /// dbg only
   objects: Vec<usize>,
 }
 
@@ -141,7 +156,8 @@ impl<T> Arena3<T> for HedgeArena {
       size,
       span_start: start + size >> 5,
       live: Default::default(),
-      objects: vec![],
+      map: None,
+      objects: vec![]
     };
     new_arena.clear_mark();
     
@@ -154,6 +170,26 @@ impl<T> Arena3<T> for HedgeArena {
   
   fn black_map(&self) -> (ptr, usize) {
     (self.start + self.size >> 6, self.size >> 6)
+  }
+  
+  fn live(&self) -> bool {
+    self.live.load(Ordering::Relaxed)
+  }
+  
+  fn on(&mut self) {
+    self.live.store(true, Ordering::Relaxed);
+    
+    self.map = Some(mmap_rs::MmapOptions::new(self.size)
+        .unwrap()
+        .with_address(self.start)
+        .map_mut()
+        .unwrap());
+  }
+  
+  fn off(&mut self) {
+    self.live.store(false, Ordering::Relaxed);
+    
+    self.map = None;
   }
 }
 
@@ -176,7 +212,7 @@ impl Ord for HedgeArena {
     if self.how_much() == other.how_much() {
       self.start.cmp(&other.start)
     } else {
-      self.start.cmp(&other.start)
+      self.how_much().cmp(&other.how_much())
     }
   }
 }
@@ -185,41 +221,56 @@ impl HedgeArena {
   
   fn clear_mark(&mut self) {
     let size_mark = self.span_start - self.start;
+    assert!(size_mark > 0);
     unsafe {
       std::ptr::write_bytes(self.start as *mut u8, 0, size_mark as usize);
     }
   }
   
   fn how_much(&self) -> usize {
-    self.cur + self.size - self.cur
+    self.start + self.size - self.cur
   }
 }
 
 
-impl<T> ArenaAllocator3<T> for HAllocator {
+impl<T: Object, U: Arena3<T>> ArenaAllocator3<T> for HAllocator<T, U> {
   const SIZE: usize = 128usize << 30;
   const LOG_BLOCK_SIZE: usize = 26;
+  const LOG_START_ARENA_SIZE: usize = 12;
+  const LOG_MAX_ARENA_SIZE: usize = 16;
   
   fn new(max_size: usize) -> Self {
     
     unsafe {
-      let start = libc::mmap(
-        std::ptr::null_mut(),
-        Self::SIZE,
-        libc::PROT_READ | libc::PROT_WRITE,
-        libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
-        -1,
-        0
-      ) as ptr;
+      // let start = memmap2::MmapOptions::map_anon(memmap2::MmapOptions::new()
+      //     .len(Self::SIZE))
+      //     .unwrap()
+      //     .as_ptr()
+      //     .cast_mut();
       
-      if !start {
+      // let start = libc::mmap(
+      //   std::ptr::null_mut(),
+      //   Self::SIZE,
+      //   libc::PROT_NONE,
+      //   libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+      //   -1,
+      //   0
+      // ) as ptr;
+      let start = mmap_rs::MmapOptions::new(Self::SIZE)
+          .unwrap()
+          .map_none()
+          .unwrap()
+          .start();
+      
+      if start {
         panic!("reserve mmap failed");
       }
-      
       
       Self {
         start,
         max_size,
+        used_memory: AtomicUsize::new(0),
+        heap: Heap::new(),
         blocks: Box::new([None; Self::SIZE >> Self::LOG_BLOCK_SIZE]),
         large_objects: vec![],
       }
@@ -227,27 +278,61 @@ impl<T> ArenaAllocator3<T> for HAllocator {
     
   }
   
+  
   fn alloc(&mut self, o: &T) -> ptr {
-    todo!()
+     match self.heap
+         .lower_bound(o.size()) {
+       Some(arena) => {
+         self.heap
+             .del(arena);
+         let ptr = arena.cur;
+         
+         if ptr == arena.start {
+           let mut block = self.block_by_ptr(ptr).unwrap();
+           match block.slots.borrow_mut().pop() {
+             Some(slot) => {
+               slot.on();
+               self.heap.insert(slot);
+             }
+             None => {
+               self.add_new_needed_block(o.size());
+               todo!()
+             }
+           }
+         }
+         
+         *arena.cur += o.size(); //wtf?????
+         self.used_memory.fetch_add(o.size(), Ordering::Relaxed);
+         self.heap
+             .insert(arena);
+         todo!();
+         ptr
+       }
+       _ => {
+         todo!();
+       }
+     };
   }
   
   fn mark_white(&mut self) {
-    for block in self.blocks.iter_mut() {
+    for block in self.blocks {
       match block {
-        &mut Some(ref mut block) => {
-          for mut span in block.slots {
-            if span.live.load(Ordering::Relaxed) {
+        Some(b) => {
+          for mut span in b.slots {
+            if span.live() {
               span.clear_mark();
             }
           }
         }
-        &mut None => {}
+        None => {}
       }
     }
   }
   
-  fn arena_by_ptr(&self, ptr: usize) -> Arc<HedgeArena> {
-    self.block_by_ptr(ptr).unwrap().arena_by_ptr(ptr)
+  fn arena_by_ptr(&self, ptr: usize) -> &HedgeArena {
+    self.block_by_ptr(ptr)
+        .unwrap()
+        .arena_by_ptr(ptr)
   }
   
   
@@ -260,10 +345,21 @@ impl<T> ArenaAllocator3<T> for HAllocator {
   }
 }
 
-impl HAllocator {
-  fn block_by_ptr(&self, ptr: usize) -> Option<*HedgeBlock> {
+impl<T: Object, U: Arena3<T>> HAllocator<T, U> {
+  fn block_by_ptr(&self, ptr: ptr) -> Option<&HedgeBlock<T, U>> {
     assert!(self.start <= ptr);
-    assert!(ptr < self.start + Self::LOG_BLOCK_SIZE);
+    assert!(ptr < self.start + Self::SIZE);
     self.blocks[ptr >> Self::LOG_BLOCK_SIZE]
+  }
+  
+  fn add_new_needed_block(&mut self, size: usize) {
+    for power in (Self::LOG_START_ARENA_SIZE..=Self::LOG_MAX_ARENA_SIZE).step_by(2) {
+      if 1 << power > size {
+        self.blocks
+            .push(HedgeBlock::new(
+              self.start + self.blocks.len() << Self::LOG_BLOCK_SIZE,
+              1 << Self::LOG_BLOCK_SIZE, 1 << power))
+      }
+    }
   }
 }

@@ -1,8 +1,6 @@
-use crate::alloca::{ArenaAllocator3, HAllocator};
-
 mod alloca;
 
-static mut ALLOCA: Option<alloca::HAllocator> = None;
+static mut ALLOCA: Option<alloca::HAllocator<T, U, W>> = None;
 
 pub extern "C" fn init(main: fn()) {
   unsafe {
