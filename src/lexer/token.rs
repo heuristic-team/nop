@@ -5,24 +5,26 @@ pub enum Token {
     EOF,
     Id(String),
     Num(u64),
-    Assign,
-    Define,
-    Eq,
-    Fn,
-    Type,
-    Mut,
+    Assign, // `=`
+    Define, // `:=`
+    Eq,     // `==`
+    Arrow,  // `->`
+    Fn,     // `fn`
+    Type,   // `type`
+    Mut,    // `mut`
+    Ret,    // `ret`
     EOL,
-    ScopeStart,
-    ScopeEnd,
-    LParen,
-    RParen,
-    Quote,
-    Dot,
-    Comma,
-    Colon,
-    Plus,
-    Minus,
-    Mul,
+    LParen, // `(`
+    RParen, // `)`
+    LBrace, // `{`
+    RBrace, // `}`
+    Quote,  // `"`
+    Dot,    // `.`
+    Comma,  // `,`
+    Colon,  // `:`
+    Plus,   // `+`
+    Minus,  // `-`
+    Mul,    // `*`
 }
 
 impl Token {
@@ -33,15 +35,17 @@ impl Token {
             Token::Num(_) => "number",
             Token::Assign => "`=`",
             Token::Define => "`:=`",
+            Token::Arrow => "`->`",
             Token::Eq => "`==`",
             Token::Fn => "`fn`",
             Token::Type => "`type`",
             Token::Mut => "`mut`",
+            Token::Ret => "`ret`",
             Token::EOL => "end of line",
-            Token::ScopeStart => "scope start",
-            Token::ScopeEnd => "scope end",
             Token::LParen => "`(`",
             Token::RParen => "`)`",
+            Token::LBrace  => "`{`",
+            Token::RBrace => "`}`",
             Token::Quote => "`\"`",
             Token::Dot => "`.`",
             Token::Comma => "`,`",

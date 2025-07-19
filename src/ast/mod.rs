@@ -17,23 +17,18 @@ pub struct FnParam {
 
 #[derive(Debug)]
 pub struct FnDecl {
-    pub name: WithSpan<String>, // TODO: do we really need this field?
+    pub name: WithSpan<String>,
     pub tp: WithSpan<Type>,
     pub params: Vec<FnParam>,
-    pub body: Block,
+    pub body: Expr,
 }
 
-pub type Block = Vec<Stmt>;
-
-#[derive(Debug, Clone)]
-pub enum Stmt {
-    Declare {
-        is_mut: bool,
-        name: WithSpan<String>,
-        tp: WithSpan<Type>,
-        value: Expr,
-    },
-    Expr(Expr),
+impl FnDecl {
+    pub fn formal_type(&self) -> Type {
+        let params = self.params.iter().map(|p| &p.tp.value).cloned().collect();
+        let rettype = Box::new(self.tp.value.clone());
+        Type::Function { params, rettype }
+    }
 }
 
 pub type OpPrecedence = u8;
@@ -60,10 +55,30 @@ impl BinaryOp {
             Self::Mul => 5,
         }
     }
+
+    pub fn is_cmp(&self) -> bool {
+        match self {
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
+    Declare {
+        is_mut: bool,
+        name: WithSpan<String>,
+        tp: WithSpan<Type>,
+        value: Box<Expr>,
+    },
+    Ret {
+        value: Option<Box<Expr>>,
+        span: Span,
+    },
+    Block {
+        tp: Type,
+        body: Vec<Expr>,
+    },
     Num {
         tp: Type,
         value: WithSpan<u64>,
@@ -76,6 +91,7 @@ pub enum Expr {
         tp: Type,
         callee: Box<Expr>,
         args: Vec<Expr>,
+        span: Span,
     },
     // Unary {
     //     op: UnaryOp,
@@ -89,12 +105,34 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct Loop {
-    pub decl: Option<Vec<Stmt>>,
-    pub cond: Option<Vec<Expr>>,
-    pub on_iter: Option<Vec<Expr>>,
-    pub span: Span,
+impl Expr {
+    pub fn tp(&self) -> &Type {
+        match self {
+            Expr::Num { tp, .. }
+            | Expr::Ref { tp, .. }
+            | Expr::Call { tp, .. }
+            | Expr::Binary { tp, .. }
+            | Expr::Block { tp, .. } => tp,
+            Expr::Declare { .. } => &Type::Unit,
+            Expr::Ret { .. } => &Type::Bottom,
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        match self {
+            Expr::Block { body, .. } => {
+                let start = body.first().expect("block must not be empty").span().start;
+                let end = body.last().expect("block must not be empty").span().end;
+                Span { start, end }
+            }
+            Expr::Num { value, .. } => value.span,
+            Expr::Ref { name, .. } => name.span,
+            Expr::Call { span, .. } => *span,
+            Expr::Binary { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
+            Expr::Declare { name, value, .. } => Span::new(name.span.start, value.span().end),
+            Expr::Ret { span, .. } => *span,
+        }
+    }
 }
 
 impl Display for BinaryOp {

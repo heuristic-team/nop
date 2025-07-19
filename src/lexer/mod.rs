@@ -10,28 +10,29 @@ pub use token::Token;
 mod lexemes;
 pub use lexemes::{Lexeme, Lexemes};
 
-// TODO: maybe unhardcode 2 spaces for block. Will have to think about it.
-
 const KEYWORDS: &[(Token, &str)] = &[
     (Token::Fn, "fn"),
     (Token::Type, "type"),
     (Token::Mut, "mut"),
+    (Token::Ret, "ret"),
 ];
 
 const SYMBOLS: &[(char, Token)] = &[
     ('(', Token::LParen),
     (')', Token::RParen),
+    ('{', Token::LBrace),
+    ('}', Token::RBrace),
     ('\"', Token::Quote),
     ('.', Token::Dot),
     (',', Token::Comma),
     ('+', Token::Plus),
-    ('-', Token::Minus),
     ('*', Token::Mul),
 ];
 
-const MULTIPLE_CHAR_SYMBOLS: &[(char, (Token, &'static str, Token))] = &[
-    ('=', (Token::Assign, "==", Token::Eq)),
-    (':', (Token::Colon, ":=", Token::Define)),
+const MULTIPLE_CHAR_SYMBOLS: &[(char, Token, &'static str, Token)] = &[
+    ('=', Token::Assign, "==", Token::Eq),
+    (':', Token::Colon, ":=", Token::Define),
+    ('-', Token::Minus, "->", Token::Arrow),
 ];
 
 // #[derive(Debug, Clone)]
@@ -50,7 +51,6 @@ type It<'a> = Peekable<CharIndices<'a>>;
 
 struct LexerCtx {
     line: usize,
-    indent: usize,
     file_size: usize,
     ret: Vec<Lexeme>,
 }
@@ -64,36 +64,6 @@ impl LexerCtx {
         self.create_location(peek_location(it, self))
     }
 
-    fn process_indent<'a>(&mut self, it: &mut It<'a>, indent: usize) {
-        if indent > self.indent {
-            let indent_diff = indent - self.indent;
-            for _ in 0..indent_diff {
-                let loc = self.current_location(it);
-                let span = Span::new(loc, loc);
-                let lexeme = WithSpan::new(Token::ScopeStart, span);
-                self.add_lexeme(lexeme);
-            }
-        } else if indent < self.indent {
-            let indent_diff = self.indent - indent;
-            for _ in 0..indent_diff {
-                let loc = self.current_location(it);
-                let span = Span::new(loc, loc);
-                let lexeme = Lexeme::new(Token::ScopeEnd, span);
-                self.add_lexeme(lexeme);
-            }
-        }
-        self.indent = indent;
-    }
-
-    fn close_indents(&mut self) {
-        for _ in 0..self.indent {
-            let loc = Location::new(self.line, self.file_size);
-            let span = Span::new(loc, loc);
-            let lexeme = Lexeme::new(Token::ScopeEnd, span);
-            self.add_lexeme(lexeme);
-        }
-    }
-
     fn eof_span(&self) -> Span {
         let loc = Location::new(self.line, self.file_size);
         Span::new(loc, loc)
@@ -102,7 +72,6 @@ impl LexerCtx {
     fn new(file_size: usize) -> Self {
         LexerCtx {
             line: 0,
-            indent: 0,
             file_size,
             ret: Vec::new(),
         }
@@ -225,8 +194,8 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
 
     if let Some((fallback_token, long_token_literal, long_token)) = MULTIPLE_CHAR_SYMBOLS
         .iter()
-        .find(|&(c, _)| *c == symbol)
-        .map(|(_, t)| t)
+        .find(|&(c, _, _, _)| *c == symbol)
+        .map(|(_, t1, lit, t2)| (t1, lit, t2))
     {
         let token = multiple_symbol(it, long_token_literal, long_token.clone());
         if token.is_none() {
@@ -263,54 +232,22 @@ fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
 }
 
 fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
-    lex_linestart(it, ctx);
     while let Some(&(_, ch)) = it.peek() {
         if let Some(lexeme) = lex_symbols(it, ctx) {
             ctx.add_lexeme(lexeme);
-            continue;
-        }
-        if valid_id_start(ch) {
+        } else if valid_id_start(ch) {
             let id = lex_id(it, ctx);
             ctx.add_lexeme(id);
-            continue;
-        }
-        if ch.is_numeric() {
+        } else if ch.is_numeric() {
             lex_number(it, ctx);
-            continue;
-        }
-        if ch == '\n' {
+        } else if ch == '\n' {
             it.next();
             ctx.new_line(it);
-            lex_linestart(it, ctx);
-            continue;
-        }
-        if ch.is_whitespace() {
+        } else if ch.is_whitespace() {
             it.next();
-            continue;
+        } else {
+            panic!("lexer couldn't discern some symbol: {}", ch);
         }
-        panic!("lexer couldn't discern some symbol: {}", ch);
-    }
-}
-
-fn lex_indent<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> usize {
-    let mut indent_amount = 0;
-    while let Some(&(_, ch)) = it.peek() {
-        if ch == '\n' {
-            return ctx.indent;
-        }
-        if !ch.is_whitespace() {
-            break;
-        }
-        indent_amount += 1;
-        it.next();
-    }
-    indent_amount / 2
-}
-
-fn lex_linestart<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
-    if !it.peek().is_none() {
-        let indent = lex_indent(it, ctx);
-        ctx.process_indent(it, indent);
     }
 }
 
@@ -319,7 +256,6 @@ fn perform(s: &str) -> LexerCtx {
     let mut ctx = LexerCtx::new(s.len());
 
     matcher(&mut iter, &mut ctx);
-    ctx.close_indents();
 
     ctx
 }
@@ -346,85 +282,23 @@ mod tests {
         }
     }
 
-    fn count_token(lexemes: &Lexemes, token: Token) -> usize {
-        let mut res = 0;
-        let mut i = 0;
-        loop {
-            match lexemes.peek_nth(i).value {
-                Token::EOF => return res,
-                t if t == token => res += 1,
-                _ => {}
-            }
-            i += 1;
-        }
-    }
-
-    fn test_eq_indents(str: &str) {
-        let lexemes = lex(str);
-        let scope_starts = count_token(&lexemes, Token::ScopeStart);
-        let scope_ends = count_token(&lexemes, Token::ScopeEnd);
-        assert_eq!(scope_starts, scope_ends);
-    }
-
-    fn test_indent(str: &str, indent: usize) {
-        let lexemes = lex(str);
-        let mut indent_count = 0;
-        for i in lexemes {
-            if i.value != Token::ScopeStart {
-                break;
-            }
-            indent_count += 1;
-        }
-        assert_eq!(indent, indent_count);
-        test_eq_indents(str);
-    }
-
     #[test]
     fn test_overall() {
-        let str = "  134\n    431\n  138\n";
+        let str = "134\n431\n138\n";
         let lexemes = lex(str);
         let expected = vec![
-            Token::ScopeStart,
             Token::Num(134),
             Token::EOL,
-            Token::ScopeStart,
             Token::Num(431),
             Token::EOL,
-            Token::ScopeEnd,
             Token::Num(138),
             Token::EOL,
-            Token::ScopeEnd,
         ];
-        let tokens: Vec<_> = lexemes.into_iter().map(|lexeme| lexeme.value).collect();
-        let _: Vec<_> = tokens
+        lexemes
             .into_iter()
+            .map(|lexeme| lexeme.value)
             .zip(expected)
-            .map(|(f, s)| assert_eq!(f, s))
-            .collect();
-    }
-    #[test]
-    fn test_indent1() {
-        test_indent("    145", 2);
-    }
-    #[test]
-    fn test_indent2() {
-        test_indent("145", 0);
-    }
-    #[test]
-    fn test_indent3() {
-        test_indent(" 145", 0);
-    }
-    #[test]
-    fn test_indent4() {
-        test_indent("  145", 1);
-    }
-    #[test]
-    fn test_indent5() {
-        test_indent(
-            "  145\
-                 148",
-            1,
-        );
+            .for_each(|(f, s)| assert_eq!(f, s));
     }
     #[test]
     fn test_num1() {

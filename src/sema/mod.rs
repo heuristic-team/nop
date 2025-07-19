@@ -1,5 +1,4 @@
 mod pass;
-
 use pass::Pass;
 
 mod passes;
@@ -11,7 +10,9 @@ pub use res::{Diagnostic, Res};
 use crate::ast::*;
 
 pub fn run(decls: Vec<FnDecl>) -> Res<AST> {
-    NameCorrectnessCheck {}
+    HandleImplicitRets {}
+        .and_then(NameCorrectnessCheck {})
         .and_then(AssignmentCorrectnessCheck {})
+        .and_then(TypeCheck {})
         .run(decls)
 }

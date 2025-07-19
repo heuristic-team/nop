@@ -1,22 +1,29 @@
 use crate::lexer::{Span, WithSpan};
 
+pub type Note = WithSpan<String>;
+
+#[derive(Debug)]
 pub struct Diagnostic {
     pub msg: String,
     pub span: Span,
-    pub notes: Vec<WithSpan<String>>,
+    pub notes: Vec<Note>,
 }
 
 impl Diagnostic {
-    pub fn new(msg: String, span: Span, notes: Vec<WithSpan<String>>) -> Self {
-        Diagnostic { msg, span, notes }
+    pub fn new(msg: String, span: Span) -> Self {
+        Diagnostic {
+            msg,
+            span,
+            notes: vec![],
+        }
     }
 
-    pub fn add_note(mut self, note: WithSpan<String>) -> Self {
-        self.notes.push(note);
-        self
+    pub fn new_with_notes(msg: String, span: Span, notes: Vec<WithSpan<String>>) -> Self {
+        Diagnostic { msg, span, notes }
     }
 }
 
+#[derive(Debug)]
 pub enum Res<T> {
     Ok(T),
     Problematic(T, Vec<Diagnostic>),
@@ -71,6 +78,13 @@ impl<T> Res<T> {
         }
     }
 
+    pub fn get_value(&self) -> Option<&T> {
+        match self {
+            Res::Ok(value) | Res::Problematic(value, _) => Some(value),
+            Res::Fatal(_) => None,
+        }
+    }
+
     pub fn extract_value(self) -> Option<T> {
         match self {
             Res::Ok(value) | Res::Problematic(value, _) => Some(value),
@@ -79,6 +93,13 @@ impl<T> Res<T> {
     }
 
     pub fn get_diagnostics(&self) -> Option<impl Iterator<Item = &Diagnostic>> {
+        match self {
+            Res::Ok(_) => None,
+            Res::Problematic(_, diags) | Res::Fatal(diags) => Some(diags.into_iter()),
+        }
+    }
+
+    pub fn extract_diagnostics(self) -> Option<impl Iterator<Item = Diagnostic>> {
         match self {
             Res::Ok(_) => None,
             Res::Problematic(_, diags) | Res::Fatal(diags) => Some(diags.into_iter()),

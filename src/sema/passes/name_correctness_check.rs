@@ -1,70 +1,62 @@
+use std::borrow::Cow;
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::Pass;
-use super::Res;
+use super::{Diagnostic, Pass, Res};
 use crate::ast::*;
 use crate::lexer::WithSpan;
-use crate::sema::Diagnostic;
 
 pub struct NameCorrectnessCheck {}
 
-type Ctx<'a> = HashSet<&'a str>;
+type Names<'a> = HashSet<&'a str>;
 
-fn check_expr<'a>(ctx: &Ctx<'a>, expr: &'a Expr) -> Vec<Diagnostic> {
+fn check_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, expr: &'a Expr) {
     match expr {
-        Expr::Num { .. } => vec![],
-        Expr::Ref { name, .. } => {
-            if !ctx.contains(name.value.as_str()) {
-                vec![Diagnostic::new(
-                    format!("reference to undefined name {}", name.value),
-                    name.span,
-                    vec![],
-                )]
-            } else {
-                vec![]
-            }
+        Expr::Ref { name, .. } if !ctx.contains(name.value.as_str()) => {
+            diags.push(Diagnostic::new(
+                format!("reference to undefined name {}", name.value),
+                name.span,
+            ));
         }
+        Expr::Num { .. } | Expr::Ref { .. } => {}
         Expr::Call { callee, args, .. } => {
-            let mut res = check_expr(ctx, callee);
+            check_expr(diags, ctx, callee);
             for arg in args {
-                res.append(&mut check_expr(ctx, arg));
+                check_expr(diags, ctx, arg);
             }
-            res
         }
         Expr::Binary { lhs, rhs, .. } => {
-            let mut res = check_expr(ctx, lhs);
-            res.append(&mut check_expr(ctx, rhs));
-            res
+            check_expr(diags, ctx, lhs);
+            check_expr(diags, ctx, rhs);
+        }
+        Expr::Declare { name, .. } => {
+            ctx.to_mut().insert(&name.value);
+        }
+        Expr::Block { body, .. } => {
+            let mut ctx = Cow::Borrowed(ctx.as_ref());
+            body.iter().for_each(|e| check_expr(diags, &mut ctx, e));
+        }
+        Expr::Ret { value, .. } => {
+            if let Some(e) = value {
+                check_expr(diags, ctx, e);
+            }
         }
     }
 }
 
-fn check_decl<'a>(mut ctx: Ctx<'a>, decl: &'a FnDecl) -> Vec<Diagnostic> {
-    let mut res = Vec::new();
+fn check_decl<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, decl: &'a FnDecl) {
+    let mut ctx = ctx.clone();
 
     for FnParam {
         name: WithSpan { value: name, .. },
         ..
     } in decl.params.iter()
     {
-        ctx.insert(&name);
+        ctx.to_mut().insert(&name);
     }
 
-    for stmt in &decl.body {
-        let mut new_diags = match stmt {
-            Stmt::Declare { name, value, .. } => {
-                let new_diags = check_expr(&ctx, value);
-                ctx.insert(&name.value);
-                new_diags
-            }
-            Stmt::Expr(expr) => check_expr(&ctx, expr),
-        };
-
-        res.append(&mut new_diags);
-    }
-
-    res
+    check_expr(diags, &mut ctx, &decl.body);
 }
 
 impl Pass for NameCorrectnessCheck {
@@ -82,16 +74,15 @@ impl Pass for NameCorrectnessCheck {
                 let note =
                     WithSpan::new("previously declared here".to_string(), prev_decl.name.span);
                 let msg = format!("redeclaration of function {}", decl.name.value);
-                diags.push(Diagnostic::new(msg, decl.name.span, vec![note]));
+                diags.push(Diagnostic::new_with_notes(msg, decl.name.span, vec![note]));
             } else {
                 res.insert(decl.name.value.clone(), decl);
             }
         }
 
-        let ctx = res.keys().map(|s| s.as_str()).collect::<Ctx>();
+        let ctx = res.keys().map(|s| s.as_str()).collect::<Names>();
         for decl in res.values() {
-            let mut new_diags = check_decl(ctx.clone(), decl);
-            diags.append(&mut new_diags);
+            check_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
         }
 
         if diags.is_empty() {

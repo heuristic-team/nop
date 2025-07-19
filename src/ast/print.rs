@@ -5,18 +5,28 @@ fn fmt_mut(is_mut: bool) -> &'static str {
 }
 
 pub fn print_decl(decl: &FnDecl) {
-    print!("fn {}(", decl.name.value);
-    if let Some((FnParam { is_mut, name, tp }, init)) = decl.params.split_last() {
-        for FnParam { is_mut, name, tp } in init {
-            print!("{}{}: {}, ", fmt_mut(*is_mut), name.value, tp.value);
-        }
-        print!("{}{}: {}", fmt_mut(*is_mut), name.value, tp.value);
+    fn print_param(param: &FnParam) {
+        print!(
+            "{}{}: {}",
+            fmt_mut(param.is_mut),
+            param.name.value,
+            param.tp.value
+        );
     }
+
+    print!("fn {}(", decl.name.value);
+
+    if let Some((last_param, init)) = decl.params.split_last() {
+        init.iter().for_each(|param| {
+            print_param(param);
+            print!(", ");
+        });
+        print_param(last_param);
+    }
+
     println!(") {} =", decl.tp.value);
 
-    for stmt in &decl.body {
-        print_stmt(stmt, 1);
-    }
+    print_expr(&decl.body, 1);
 }
 
 fn make_offset(depth: u8) {
@@ -25,41 +35,47 @@ fn make_offset(depth: u8) {
     }
 }
 
-fn print_stmt(stmt: &Stmt, depth: u8) {
-    match stmt {
-        Stmt::Declare {
+fn print_expr(expr: &Expr, depth: u8) {
+    make_offset(depth);
+    match expr {
+        Expr::Declare {
             is_mut,
             name,
             tp,
             value,
         } => {
-            make_offset(depth);
-            println!("let {}{}: {} =", fmt_mut(*is_mut), name.value, tp.value);
+            println!("Declare {}{} {} =", fmt_mut(*is_mut), name.value, tp.value);
             print_expr(value, depth + 1);
         }
-        Stmt::Expr(expr) => print_expr(expr, depth),
-    }
-}
-
-fn print_expr(expr: &Expr, depth: u8) {
-    make_offset(depth);
-    match expr {
-        Expr::Num { tp, value } => println!("{} of type {}", value.value, tp),
-        Expr::Ref { tp, name } => println!("{} of type {}", name.value, tp),
-        Expr::Call { tp, callee, args } => {
-            println!("call with result type {tp}");
+        Expr::Num { tp, value } => println!("Num {} {}", value.value, tp),
+        Expr::Ref { tp, name } => println!("Ref {} {}", name.value, tp),
+        Expr::Call {
+            tp, callee, args, ..
+        } => {
+            println!("Call {tp}");
             print_expr(&callee, depth + 1);
             make_offset(depth + 1);
             println!("with args");
             for arg in args {
                 print_expr(arg, depth + 2)
             }
-            make_offset(depth);
         }
         Expr::Binary { tp, op, lhs, rhs } => {
-            println!("{} with result type {tp}", op.value);
+            println!("Binary {} {}", op.value, tp);
             print_expr(lhs, depth + 1);
             print_expr(rhs, depth + 1);
+        }
+        Expr::Block { body, tp } => {
+            println!("Block {} {{", tp);
+            body.iter().for_each(|e| print_expr(e, depth + 1));
+            make_offset(depth);
+            println!("}}");
+        }
+        Expr::Ret { value, .. } => {
+            println!("Ret");
+            if let Some(e) = value {
+                print_expr(e, depth + 1);
+            }
         }
     }
 }

@@ -17,17 +17,25 @@ fn main() {
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok(decls) => {
+            println!("before sema:");
             for decl in &decls {
                 crate::ast::print::print_decl(decl)
             }
+            println!();
 
             let ast_res = sema::run(decls);
             if let Some(diags) = ast_res.get_diagnostics() {
                 for diag in diags {
                     // TODO: print diagnositcs
+                    eprintln!("{:?}", diag);
                 }
             }
             if let Some(ast) = ast_res.extract_value() {
+                println!("after sema:");
+                for decl in ast.values() {
+                    crate::ast::print::print_decl(decl)
+                }
+
                 // TODO: pass AST to translator
             }
         }
