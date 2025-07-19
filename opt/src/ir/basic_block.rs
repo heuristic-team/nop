@@ -14,6 +14,29 @@ use crate::ir::instr::Instr;
 /// TODO: providerino examplerino
 ///
 pub struct BasicBlock {
-    name: String,
-    instrs: Vec<Instr>,
+    pub name: String,
+    pub instrs: Vec<Instr>,
+}
+
+impl BasicBlock {
+    /// Creates basic block with specified name and instructions.
+    pub fn make(name: String, instrs: Vec<Instr>) -> Self {
+        BasicBlock { name, instrs }
+    }
+
+    /// Creates basic block with specified name and no instructions.
+    pub fn new(name: String) -> Self {
+        BasicBlock {
+            name,
+            instrs: vec![],
+        }
+    }
+
+    /// Adds instruction to this basic block.
+    ///
+    /// Returns mutable reference on this basic block for `Builder` pattern.
+    pub fn add_instr(&mut self, instr: Instr) -> &mut Self {
+        self.instrs.push(instr);
+        self
+    }
 }
