@@ -18,17 +18,17 @@ pub enum Op {
 
 impl Op {
     /// Creates variable operand with a specified type.
-    fn create_var(name: String, tp: Type) -> Self {
+    pub fn create_var(name: String, tp: Type) -> Self {
         Self::Variable(Var::new(name, tp))
     }
 
     /// Creates constant integer operand.
-    fn create_int(int: u64) -> Self {
+    pub fn create_int(int: u64) -> Self {
         Self::Const(Const::create_int(int))
     }
 
     /// Creates constant boolean operand.
-    fn create_bool(b: bool) -> Self {
+    pub fn create_bool(b: bool) -> Self {
         Self::Const(Const::create_bool(b))
     }
 
@@ -37,7 +37,7 @@ impl Op {
     checker!(var, Self::Variable(_));
 
     /// Checks whether this instance is of integer type.
-    fn is_int(&self) -> bool {
+    pub fn is_int(&self) -> bool {
         match self {
             Self::Variable(v) => v.tp == Type::I64, // TODO: do normal check for types
             Self::Const(Const::Int(_)) => true,
@@ -46,7 +46,7 @@ impl Op {
     }
 
     /// Checks whether this instance is of boolean type.
-    fn is_bool(&self) -> bool {
+    pub fn is_bool(&self) -> bool {
         match self {
             Self::Variable(v) => v.tp == Type::Bool, // TODO: do normal check for types
             Self::Const(Const::Bool(_)) => true,
@@ -63,12 +63,12 @@ pub enum Const {
 
 impl Const {
     /// Creates integer constant.
-    fn create_int(int: u64) -> Self {
+    pub fn create_int(int: u64) -> Self {
         Self::Int(int)
     }
 
     /// Creates boolean constant.
-    fn create_bool(b: bool) -> Self {
+    pub fn create_bool(b: bool) -> Self {
         Self::Bool(b)
     }
 
@@ -85,12 +85,12 @@ pub enum Label {
 
 impl Label {
     /// Creates label of function.
-    fn function_label(func: Rc<Func>) -> Self {
+    pub fn function_label(func: Rc<Func>) -> Self {
         Self::Fn(func)
     }
 
     /// Creates label of basic block.
-    fn block_label(block: Rc<BasicBlock>) -> Self {
+    pub fn block_label(block: Rc<BasicBlock>) -> Self {
         Self::Block(block)
     }
 
@@ -109,7 +109,7 @@ pub struct Var {
 
 impl Var {
     /// Creates new IR variable.
-    fn new(name: String, tp: Type) -> Self {
+    pub fn new(name: String, tp: Type) -> Self {
         Self { name, tp }
     }
 }
