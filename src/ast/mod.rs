@@ -83,6 +83,10 @@ pub enum Expr {
         tp: Type,
         value: WithSpan<u64>,
     },
+    Bool {
+        value: bool,
+        span: Span,
+    },
     Ref {
         tp: Type,
         name: WithSpan<String>,
@@ -113,6 +117,7 @@ impl Expr {
             | Expr::Call { tp, .. }
             | Expr::Binary { tp, .. }
             | Expr::Block { tp, .. } => tp,
+            Expr::Bool { .. } => &Type::Bool,
             Expr::Declare { .. } => &Type::Unit,
             Expr::Ret { .. } => &Type::Bottom,
         }
@@ -125,6 +130,7 @@ impl Expr {
                 let end = body.last().expect("block must not be empty").span().end;
                 Span { start, end }
             }
+            Expr::Bool { span, .. } => *span,
             Expr::Num { value, .. } => value.span,
             Expr::Ref { name, .. } => name.span,
             Expr::Call { span, .. } => *span,

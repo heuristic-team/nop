@@ -281,6 +281,14 @@ impl Parser {
                 self.get(token!(Token::RParen), expected!(Token::RParen))?;
                 Ok(res)
             }
+            Token::True => {
+                self.lexemes.next();
+                Ok(Expr::Bool { value: true, span })
+            }
+            Token::False => {
+                self.lexemes.next();
+                Ok(Expr::Bool { value: false, span })
+            }
             Token::Id(name) => {
                 self.lexemes.next();
                 Ok(Expr::Ref {

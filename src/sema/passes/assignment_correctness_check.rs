@@ -11,7 +11,7 @@ type MutableVars<'a> = HashSet<&'a str>;
 
 fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
     match expr {
-        Expr::Num { .. } => false,
+        Expr::Num { .. } | Expr::Bool { .. } => false,
         Expr::Ref { name, .. } => ctx.contains(name.value.as_str()),
 
         Expr::Call { .. }
@@ -28,7 +28,7 @@ fn check_expr<'a, 'b: 'a>(
     expr: &'b Expr,
 ) {
     match expr {
-        Expr::Num { .. } | Expr::Ref { .. } => {}
+        Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
         Expr::Call { callee, args, .. } => {
             check_expr(diags, ctx, callee);
             args.iter().for_each(|arg| check_expr(diags, ctx, arg));

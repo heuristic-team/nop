@@ -19,7 +19,7 @@ fn check_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, expr: &
                 name.span,
             ));
         }
-        Expr::Num { .. } | Expr::Ref { .. } => {}
+        Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
         Expr::Call { callee, args, .. } => {
             check_expr(diags, ctx, callee);
             for arg in args {

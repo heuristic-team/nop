@@ -25,7 +25,7 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &
         |e| match e {
             Expr::Ret { value, span } => {
                 let tp = value.as_ref().map(|e| e.tp()).unwrap_or(&Type::Unit);
-                if *tp != decl.tp.value {
+                if !match_types(tp, &decl.tp.value) {
                     let msg = format!(
                         "return type mismatch: expected {}, but got {}",
                         decl.tp.value, tp
@@ -50,6 +50,7 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
                 *tp = deduce_integer_type(value.value);
             }
         }
+        Expr::Bool { .. } => {}
         Expr::Ref { tp, name } => {
             *tp = typemap.get(&name.value).expect("valid reference").clone();
         }
@@ -111,7 +112,7 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
                 propagate_type(value, &tp.value);
                 process_expr(diags, typemap, value);
 
-                if *value.tp() != tp.value {
+                if !match_types(value.tp(), &tp.value) {
                     let msg = format!(
                         "initializer type mismatch: expected {}, but got {}",
                         tp.value,
@@ -154,6 +155,7 @@ fn propagate_type(expr: &mut Expr, propagated: &Type) {
         }
         Expr::Ref { .. } | Expr::Call { .. } => {} // these types should be set in `process_expr` by lookup
         Expr::Binary { op, .. } if op.value.is_cmp() => {} // always bool
+        Expr::Bool { .. } => {}                    // always bool
         Expr::Binary { tp, lhs, rhs, .. } => {
             *tp = propagated.clone();
             propagate_type(lhs, propagated);
@@ -198,7 +200,7 @@ fn check_call_args(diags: &mut Vec<Diagnostic>, call_span: Span, params: &[Type]
     params
         .iter()
         .zip(args)
-        .filter(|(param, arg)| arg.tp() != *param)
+        .filter(|(param, arg)| !match_types(arg.tp(), *param))
         .map(|(param, arg)| {
             Diagnostic::new(
                 format!(
@@ -222,8 +224,7 @@ fn for_each_expr(mut f: impl FnMut(&Expr), root: &Expr) {
             }
         }
         Expr::Block { body, .. } => body.iter().for_each(f),
-        Expr::Num { .. } => {}
-        Expr::Ref { .. } => {}
+        Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
         Expr::Call { callee, args, .. } => {
             f(&callee);
             args.iter().for_each(f)

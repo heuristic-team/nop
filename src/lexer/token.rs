@@ -13,6 +13,8 @@ pub enum Token {
     Type,   // `type`
     Mut,    // `mut`
     Ret,    // `ret`
+    True,   // `true`
+    False,  // `false`
     EOL,
     LParen, // `(`
     RParen, // `)`
@@ -41,10 +43,12 @@ impl Token {
             Token::Type => "`type`",
             Token::Mut => "`mut`",
             Token::Ret => "`ret`",
+            Token::True => "`true`",
+            Token::False => "`false`",
             Token::EOL => "end of line",
             Token::LParen => "`(`",
             Token::RParen => "`)`",
-            Token::LBrace  => "`{`",
+            Token::LBrace => "`{`",
             Token::RBrace => "`}`",
             Token::Quote => "`\"`",
             Token::Dot => "`.`",

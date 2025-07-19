@@ -77,5 +77,6 @@ fn print_expr(expr: &Expr, depth: u8) {
                 print_expr(e, depth + 1);
             }
         }
+        Expr::Bool { value, .. } => println!("Bool {value}"),
     }
 }

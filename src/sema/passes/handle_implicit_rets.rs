@@ -43,6 +43,7 @@ fn last_expr(e: &mut Expr) -> &mut Expr {
         Expr::Declare { .. }
         | Expr::Ret { .. }
         | Expr::Num { .. }
+        | Expr::Bool { .. }
         | Expr::Ref { .. }
         | Expr::Call { .. }
         | Expr::Binary { .. } => e,
