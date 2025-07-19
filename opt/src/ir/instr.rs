@@ -4,7 +4,7 @@ use crate::{checker, ir::operand::*};
 use frontend::typesystem::types::Type;
 
 /// Type of the binary [`Instr`]
-enum BinaryType {
+pub enum BinaryType {
     Add,
     Sub,
     Div,
@@ -12,7 +12,7 @@ enum BinaryType {
 }
 
 /// Type of the comparison performed by [`InstrContent::Cmp`] instruction.
-enum CmpType {
+pub enum CmpType {
     GE,  // Greater or equal.
     GT,  // Greater than.
     LE,  // Less or equal.
@@ -48,25 +48,67 @@ pub struct Instr {
 ///
 /// TODO: examplino providerino
 ///
-enum InstrContent {
+pub enum InstrContent {
     Binary(BinaryType, Var, Op, Op),
     Cmp(CmpType, Var, Op, Op),
     Mov(Var, Op),
     Call(Label, Var, Vec<Op>),
     Jmp(Label),
+    Ret(Option<Op>),
+    Br(Label, Label, Op),
+}
+
+impl InstrContent {
+    /// Creates `call` instruction.
+    pub fn create_call(label: Label, res: Var, ops: Vec<Op>) -> Self {
+        Self::Call(label, res, ops)
+    }
+
+    /// Creates `cmp` instruction.
+    pub fn create_cmp(cmp_type: CmpType, res: Var, lhs: Op, rhs: Op) -> Self {
+        Self::Cmp(cmp_type, res, lhs, rhs)
+    }
+
+    /// Creates `jmp` instruction.
+    pub fn create_jmp(label: Label) -> Self {
+        Self::Jmp(label)
+    }
+
+    pub fn create_br(true_label: Label, false_label: Label, cond: Op) -> Self {
+        Self::Br(true_label, false_label, cond)
+    }
+
+    pub fn create_void_ret() -> Self {
+        Self::Ret(None)
+    }
+
+    pub fn create_ret(op: Op) -> Self {
+        Self::Ret(Some(op))
+    }
+
+    pub fn is_terminator(&self) -> bool {
+        match self {
+            Self::Jmp(_) => true,
+            Self::Br(_, _, _) => true,
+            Self::Ret(_) => true,
+            _ => false,
+        }
+    }
 }
 
 macro_rules! binary_factory {
     ($name: ident, $tp: expr) => {
         paste::paste! {
-            /// Creates binary instruction `$name`.
-            fn [<create_ $name>](res: Var, lhs: Op, rhs: Op) -> Self {
+            #[doc ="Creates binary instruction "]
+            #[doc = stringify!($name)]
+            pub fn [<create_ $name>](res: Var, lhs: Op, rhs: Op) -> Self {
                 Self::Binary($tp, res, lhs, rhs)
             }
         }
     };
 }
 
+/// Generated methods go here.
 impl InstrContent {
     binary_factory!(add, BinaryType::Add);
     binary_factory!(sub, BinaryType::Sub);
@@ -81,19 +123,6 @@ impl InstrContent {
     checker!(mov, Self::Mov(_, _));
     checker!(jmp, Self::Jmp(_));
     checker!(call, Self::Call(_, _, _));
-
-    /// Creates `call` instruction.
-    fn create_call(label: Label, res: Var, ops: Vec<Op>) -> Self {
-        Self::Call(label, res, ops)
-    }
-
-    /// Creates `cmp` instruction.
-    fn create_cmp(cmp_type: CmpType, res: Var, lhs: Op, rhs: Op) -> Self {
-        Self::Cmp(cmp_type, res, lhs, rhs)
-    }
-
-    /// Creates `jmp` instruction.
-    fn create_jmp(label: Label) -> Self {
-        Self::Jmp(label)
-    }
+    checker!(branch, Self::Br(_, _, _));
+    checker!(ret, Self::Ret(_));
 }
