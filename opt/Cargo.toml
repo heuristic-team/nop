@@ -1,0 +1,8 @@
+[package]
+name = "opt"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+frontend = { path = "../frontend" }
+paste = "1.0.15"
