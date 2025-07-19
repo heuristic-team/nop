@@ -1,6 +1,10 @@
+#![allow(dead_code)]
+
 use std::rc::Rc;
 
 use frontend::typesystem::types::Type;
+
+use crate::checker;
 
 use super::{basic_block::BasicBlock, function::Func};
 
@@ -13,36 +17,24 @@ pub enum Op {
 }
 
 impl Op {
-    /// Factory method for creating operand which is variable.
+    /// Creates variable operand with a specified type.
     fn create_var(name: String, tp: Type) -> Self {
         Self::Variable(Var::new(name, tp))
     }
 
-    /// Factory method for creating operand which is constant integer.
+    /// Creates constant integer operand.
     fn create_int(int: u64) -> Self {
         Self::Const(Const::create_int(int))
     }
 
-    /// Factory method for creating operand which is constant boolean.
+    /// Creates constant boolean operand.
     fn create_bool(b: bool) -> Self {
         Self::Const(Const::create_bool(b))
     }
 
-    /// Checks whether this instance is constant.
-    fn is_const(&self) -> bool {
-        match self {
-            Self::Const(_) => true,
-            _ => false,
-        }
-    }
+    checker!(const, Self::Const(_));
 
-    /// Checks whether this instance is some variable.
-    fn is_var(&self) -> bool {
-        match self {
-            Self::Variable(_) => true,
-            _ => false,
-        }
-    }
+    checker!(var, Self::Variable(_));
 
     /// Checks whether this instance is of integer type.
     fn is_int(&self) -> bool {
@@ -70,31 +62,19 @@ pub enum Const {
 }
 
 impl Const {
-    /// Factory method for creating integer constant.
+    /// Creates integer constant.
     fn create_int(int: u64) -> Self {
         Self::Int(int)
     }
 
-    /// Factory method for creating boolean constant.
+    /// Creates boolean constant.
     fn create_bool(b: bool) -> Self {
         Self::Bool(b)
     }
 
-    /// Checks whether this constant is boolean.
-    fn is_bool(&self) -> bool {
-        match self {
-            Self::Bool(_) => true,
-            _ => false,
-        }
-    }
+    checker!(bool, Self::Bool(_));
 
-    /// Checks whether this constant is of integer type.
-    fn is_int(&self) -> bool {
-        match self {
-            Self::Int(_) => true,
-            _ => false,
-        }
-    }
+    checker!(int, Self::Int(_));
 }
 
 /// Represents label for jump instructions in IR.
@@ -104,31 +84,19 @@ pub enum Label {
 }
 
 impl Label {
-    /// Factory method for creating label of function.
+    /// Creates label of function.
     fn function_label(func: Rc<Func>) -> Self {
         Self::Fn(func)
     }
 
-    /// Factory method for creating label of basic block.
+    /// Creates label of basic block.
     fn block_label(block: Rc<BasicBlock>) -> Self {
         Self::Block(block)
     }
 
-    /// Checks whether this is label of a basic block.
-    fn is_block(&self) -> bool {
-        match self {
-            Self::Block(_) => true,
-            _ => false,
-        }
-    }
+    checker!(block, Self::Block(_));
 
-    /// Checks whether this is label of a function.
-    fn is_function(&self) -> bool {
-        match self {
-            Self::Fn(_) => true,
-            _ => false,
-        }
-    }
+    checker!(function, Self::Fn(_));
 }
 
 /// Represents variables in IR.
@@ -140,6 +108,7 @@ pub struct Var {
 }
 
 impl Var {
+    /// Creates new IR variable.
     fn new(name: String, tp: Type) -> Self {
         Self { name, tp }
     }

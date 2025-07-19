@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::ir::instr::Instr;
 
 /// Represents basic block of IR.
