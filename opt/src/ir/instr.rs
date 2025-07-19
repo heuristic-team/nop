@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::ir::operand::*;
 use frontend::typesystem::types::Type;
 
@@ -54,4 +52,36 @@ enum InstrContent {
     Mov(Var, Op),
     Call(Label, Var, Vec<Op>),
     Jmp(Label),
+}
+
+macro_rules! binary_factory {
+    ($name: ident, $tp: expr) => {
+        fn $name(res: Var, lhs: Op, rhs: Op) -> Self {
+            Self::Binary($tp, res, lhs, rhs)
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! checker {
+    ($name: ident, $pattern: pat) => {
+        fn $name(&self) -> bool {
+            match self {
+                $pattern => true,
+                _ => false,
+            }
+        }
+    };
+}
+
+impl InstrContent {
+    binary_factory!(create_add, BinaryType::Add);
+    binary_factory!(create_sub, BinaryType::Sub);
+    binary_factory!(create_div, BinaryType::Div);
+    binary_factory!(create_mul, BinaryType::Mul);
+
+    checker!(is_add, Self::Binary(BinaryType::Add, _, _, _));
+    checker!(is_sub, Self::Binary(BinaryType::Sub, _, _, _));
+    checker!(is_div, Self::Binary(BinaryType::Div, _, _, _));
+    checker!(is_mul, Self::Binary(BinaryType::Div, _, _, _));
 }
