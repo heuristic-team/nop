@@ -20,12 +20,12 @@ pub struct BasicBlock {
 
 impl BasicBlock {
     /// Creates basic block with specified name and instructions.
-    pub fn make(name: String, instrs: Vec<Instr>) -> Self {
+    pub fn new(name: String, instrs: Vec<Instr>) -> Self {
         BasicBlock { name, instrs }
     }
 
     /// Creates basic block with specified name and no instructions.
-    pub fn new(name: String) -> Self {
+    pub fn empty(name: String) -> Self {
         BasicBlock {
             name,
             instrs: vec![],

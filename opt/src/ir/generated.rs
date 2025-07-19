@@ -44,8 +44,8 @@ macro_rules! binary_factory {
         paste::paste! {
             #[doc ="Creates binary instruction "]
             #[doc = stringify!($name)]
-            pub fn [<create_ $name>](res: Var, lhs: Op, rhs: Op) -> Self {
-                Self::Binary($tp, res, lhs, rhs)
+            pub fn [<create_ $name>](dest: Var, lhs: Op, rhs: Op) -> Self {
+                Self::Binary {tp: $tp, dest, lhs, rhs}
             }
         }
     };
@@ -70,15 +70,39 @@ impl InstrContent {
     binary_factory!(div, BinaryType::Div);
     binary_factory!(mul, BinaryType::Mul);
 
-    checker!(add, Self::Binary(BinaryType::Add, _, _, _));
-    checker!(sub, Self::Binary(BinaryType::Sub, _, _, _));
-    checker!(div, Self::Binary(BinaryType::Div, _, _, _));
-    checker!(mul, Self::Binary(BinaryType::Div, _, _, _));
-    checker!(cmp, Self::Cmp(_, _, _, _));
-    checker!(mov, Self::Mov(_, _));
+    checker!(
+        add,
+        Self::Binary {
+            tp: BinaryType::Add,
+            ..
+        }
+    );
+    checker!(
+        sub,
+        Self::Binary {
+            tp: BinaryType::Sub,
+            ..
+        }
+    );
+    checker!(
+        div,
+        Self::Binary {
+            tp: BinaryType::Div,
+            ..
+        }
+    );
+    checker!(
+        mul,
+        Self::Binary {
+            tp: BinaryType::Div,
+            ..
+        }
+    );
+    checker!(cmp, Self::Cmp { .. });
+    checker!(mov, Self::Mov { .. });
     checker!(jmp, Self::Jmp(_));
-    checker!(call, Self::Call(_, _, _));
-    checker!(branch, Self::Br(_, _, _));
+    checker!(call, Self::Call { .. });
+    checker!(branch, Self::Br { .. });
     checker!(ret, Self::Ret(_));
 }
 

@@ -49,24 +49,45 @@ pub struct Instr {
 /// TODO: examplino providerino
 ///
 pub enum InstrContent {
-    Binary(BinaryType, Var, Op, Op),
-    Cmp(CmpType, Var, Op, Op),
-    Mov(Var, Op),
-    Call(Label, Var, Vec<Op>),
+    Binary {
+        tp: BinaryType,
+        dest: Var,
+        lhs: Op,
+        rhs: Op,
+    },
+    Cmp {
+        tp: CmpType,
+        dest: Var,
+        lhs: Op,
+        rhs: Op,
+    },
+    Mov {
+        dest: Var,
+        rhs: Op,
+    },
+    Call {
+        func: Label,
+        dest: Var,
+        args: Vec<Op>,
+    },
     Jmp(Label),
     Ret(Option<Op>),
-    Br(Label, Label, Op),
+    Br {
+        true_branch: Label,
+        false_branch: Label,
+        cond: Op,
+    },
 }
 
 impl InstrContent {
     /// Creates `call` instruction.
-    pub fn create_call(label: Label, res: Var, ops: Vec<Op>) -> Self {
-        Self::Call(label, res, ops)
+    pub fn create_call(func: Label, dest: Var, args: Vec<Op>) -> Self {
+        Self::Call { func, dest, args }
     }
 
     /// Creates `cmp` instruction.
-    pub fn create_cmp(cmp_type: CmpType, res: Var, lhs: Op, rhs: Op) -> Self {
-        Self::Cmp(cmp_type, res, lhs, rhs)
+    pub fn create_cmp(tp: CmpType, dest: Var, lhs: Op, rhs: Op) -> Self {
+        Self::Cmp { tp, dest, lhs, rhs }
     }
 
     /// Creates `jmp` instruction.
@@ -74,8 +95,12 @@ impl InstrContent {
         Self::Jmp(label)
     }
 
-    pub fn create_br(true_label: Label, false_label: Label, cond: Op) -> Self {
-        Self::Br(true_label, false_label, cond)
+    pub fn create_br(true_branch: Label, false_branch: Label, cond: Op) -> Self {
+        Self::Br {
+            true_branch,
+            false_branch,
+            cond,
+        }
     }
 
     pub fn create_void_ret() -> Self {
@@ -89,7 +114,7 @@ impl InstrContent {
     pub fn is_terminator(&self) -> bool {
         match self {
             Self::Jmp(_) => true,
-            Self::Br(_, _, _) => true,
+            Self::Br { .. } => true,
             Self::Ret(_) => true,
             _ => false,
         }

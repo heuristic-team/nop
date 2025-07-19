@@ -19,7 +19,7 @@ pub struct Func {
 
 impl Func {
     /// Creates new function with specified name and type.
-    pub fn new(name: String, tp: Type) -> Self {
+    pub fn empty(name: String, tp: Type) -> Self {
         Self {
             name,
             tp,
@@ -28,7 +28,7 @@ impl Func {
     }
 
     /// Creates new function with specified name type and blocks.
-    pub fn make(name: String, tp: Type, blocks: Vec<Rc<BasicBlock>>) -> Self {
+    pub fn new(name: String, tp: Type, blocks: Vec<Rc<BasicBlock>>) -> Self {
         Self { name, tp, blocks }
     }
 
