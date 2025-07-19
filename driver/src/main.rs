@@ -1,17 +1,12 @@
-use cli::get_input;
-use lexer::lex;
-use parser::Parser;
-
-use ast::print::TreePrintable;
-
-use crate::ast::FnDecl;
-
-mod ast;
 mod cli;
-mod ir;
-mod lexer;
-mod parser;
-mod typesystem;
+
+use cli::get_input;
+
+use frontend::{
+    ast::{FnDecl, print::TreePrintable},
+    lexer::lex,
+    parser::Parser,
+};
 
 fn main() {
     let input = get_input();
