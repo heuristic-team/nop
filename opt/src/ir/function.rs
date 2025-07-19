@@ -12,7 +12,41 @@ use frontend::typesystem::types::Type;
 /// TODO: providerino examplerino
 ///
 pub struct Func {
-    name: String,
-    tp: Type,
-    blocks: Vec<Rc<BasicBlock>>,
+    pub name: String,
+    pub tp: Type,
+    pub blocks: Vec<Rc<BasicBlock>>,
+}
+
+impl Func {
+    /// Creates new function with specified name and type.
+    pub fn new(name: String, tp: Type) -> Self {
+        Self {
+            name,
+            tp,
+            blocks: vec![],
+        }
+    }
+
+    /// Creates new function with specified name type and blocks.
+    pub fn make(name: String, tp: Type, blocks: Vec<Rc<BasicBlock>>) -> Self {
+        Self { name, tp, blocks }
+    }
+
+    /// Adds basic block to blocks of this function.
+    ///
+    /// Returns mutable reference to this function for `Builder` pattern.
+    pub fn add_block(&mut self, block: Rc<BasicBlock>) -> &mut Self {
+        self.blocks.push(block);
+        self
+    }
+
+    /// Add basic block to blocks of function and return reference counted pointer.
+    ///
+    /// Useful for consuming block into function and then using reference
+    /// counted pointer for labels.
+    pub fn add_owned_block(&mut self, block: BasicBlock) -> Rc<BasicBlock> {
+        let block = Rc::new(block);
+        self.blocks.push(block.clone());
+        block
+    }
 }
