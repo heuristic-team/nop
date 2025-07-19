@@ -4,8 +4,6 @@ use std::rc::Rc;
 
 use frontend::typesystem::types::Type;
 
-use crate::checker;
-
 use super::{basic_block::BasicBlock, function::Func};
 
 /// Standard operand of the IR instruction.
@@ -31,10 +29,6 @@ impl Op {
     pub fn create_bool(b: bool) -> Self {
         Self::Const(Const::create_bool(b))
     }
-
-    checker!(const, Self::Const(_));
-
-    checker!(var, Self::Variable(_));
 
     /// Checks whether this instance is of integer type.
     pub fn is_int(&self) -> bool {
@@ -71,10 +65,6 @@ impl Const {
     pub fn create_bool(b: bool) -> Self {
         Self::Bool(b)
     }
-
-    checker!(bool, Self::Bool(_));
-
-    checker!(int, Self::Int(_));
 }
 
 /// Represents label for jump instructions in IR.
@@ -93,10 +83,6 @@ impl Label {
     pub fn block_label(block: Rc<BasicBlock>) -> Self {
         Self::Block(block)
     }
-
-    checker!(block, Self::Block(_));
-
-    checker!(function, Self::Fn(_));
 }
 
 /// Represents variables in IR.
