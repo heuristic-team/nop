@@ -2,4 +2,4 @@ pub mod ast;
 pub mod lexer;
 pub mod parser;
 pub mod sema;
-mod typesystem;
+pub mod typesystem;
