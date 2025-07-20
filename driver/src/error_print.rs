@@ -70,9 +70,14 @@ fn print_with_location(line: usize, column: usize, msg: &str) {
 fn print_msg(input: &Input, span: Span, msg: &str) {
     let (line_number, column_number) = {
         let mut line_boundaries = get_line_boundaries(&input.contents).enumerate();
-        let (number, (b, _)) = line_boundaries
-            .find(|&(_, (lb, le))| lb <= span.end && le >= span.start)
-            .expect("valid span");
+
+        let (number, (b, _)) = if span.start >= input.contents.len() {
+            line_boundaries.last().unwrap()
+        } else {
+            line_boundaries
+                .find(|&(_, (lb, le))| lb <= span.end && le >= span.start)
+                .expect("valid span")
+        };
         (number + 1, span.start - b + 1)
     };
 

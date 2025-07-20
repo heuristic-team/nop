@@ -50,10 +50,6 @@ impl LexerCtx {
         peek_offset(it, self)
     }
 
-    fn eof_span(&self) -> Span {
-        Span::new(self.file_size, self.file_size)
-    }
-
     fn new(file_size: usize) -> Self {
         LexerCtx {
             line: 0,
@@ -77,11 +73,7 @@ impl LexerCtx {
 
 fn peek_offset<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> usize {
     let loc = it.peek();
-    if let Some(&(n, _)) = loc {
-        n
-    } else {
-        ctx.file_size
-    }
+    loc.map(|&(n, _)| n).unwrap_or(ctx.file_size)
 }
 
 fn eat_while<'a>(f: fn(char) -> bool, it: &mut It<'a>) -> String {
@@ -247,7 +239,11 @@ fn perform(s: &str) -> LexerCtx {
 
 pub fn lex(s: &str) -> Lexemes {
     let ctx = perform(s);
-    let eof_span = ctx.eof_span();
+    let eof_span = ctx
+        .ret
+        .last()
+        .map(|l| l.span)
+        .unwrap_or(Span::new(s.len(), s.len()));
     Lexemes::new(ctx.ret, eof_span)
 }
 
