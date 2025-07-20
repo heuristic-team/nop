@@ -1,5 +1,5 @@
 use super::{
-    instr::{BinaryType, InstrContent},
+    instr::{BinaryType, Instr},
     operand::{Const, Label, Op, Var},
 };
 
@@ -64,7 +64,7 @@ impl Const {
 }
 
 /// Generated methods go here.
-impl InstrContent {
+impl Instr {
     binary_factory!(add, BinaryType::Add);
     binary_factory!(sub, BinaryType::Sub);
     binary_factory!(div, BinaryType::Div);
