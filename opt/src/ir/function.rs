@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use crate::ir::basic_block::BasicBlock;
-use frontend::typesystem::types::Type;
+use frontend::typesystem::Type;
 
 use super::operand::Var;
 

@@ -1,6 +1,6 @@
 use crate::ast::{BinaryOp, Expr, FnDecl, FnParam, OpPrecedence};
 use crate::lexer::{Lexeme, Lexemes, Span, Token, WithSpan};
-use crate::typesystem::types::Type;
+use crate::typesystem::Type;
 
 mod res;
 pub use res::ParseError;

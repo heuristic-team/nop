@@ -1,4 +1,4 @@
-use super::{Res, pass::Pass, Diagnostic};
+use super::{Res, pass::Pass};
 
 mod handle_implicit_rets;
 pub use handle_implicit_rets::HandleImplicitRets;

@@ -1,5 +1,5 @@
-use std::iter::Peekable;
-use std::str::CharIndices;
+use std::iter::{Enumerate, Peekable};
+use std::str::Chars;
 
 mod span;
 pub use span::*;
@@ -37,19 +37,7 @@ const MULTIPLE_CHAR_SYMBOLS: &[(char, Token, &'static str, Token)] = &[
     ('-', Token::Minus, "->", Token::Arrow),
 ];
 
-// #[derive(Debug, Clone)]
-// pub struct Lexeme {
-//     pub token: Token,
-//     pub span: Span,
-// }
-
-// impl Lexeme {
-//     fn new(token: Token, span: Span) -> Self {
-//         Lexeme { token, span }
-//     }
-// }
-
-type It<'a> = Peekable<CharIndices<'a>>;
+type It<'a> = Peekable<Enumerate<Chars<'a>>>;
 
 struct LexerCtx {
     line: usize,
@@ -58,17 +46,12 @@ struct LexerCtx {
 }
 
 impl LexerCtx {
-    fn create_location(&self, tok: usize) -> Location {
-        Location::new(self.line, tok)
-    }
-
-    fn current_location<'a>(&self, it: &mut It<'a>) -> Location {
-        self.create_location(peek_location(it, self))
+    fn current_offset<'a>(&self, it: &mut It<'a>) -> usize {
+        peek_offset(it, self)
     }
 
     fn eof_span(&self) -> Span {
-        let loc = Location::new(self.line, self.file_size);
-        Span::new(loc, loc)
+        Span::new(self.file_size, self.file_size)
     }
 
     fn new(file_size: usize) -> Self {
@@ -79,7 +62,7 @@ impl LexerCtx {
         }
     }
     fn new_line<'a>(&mut self, it: &mut It<'a>) {
-        let pos = self.current_location(it);
+        let pos = self.current_offset(it);
         let token = Token::EOL;
         let span = Span::new(pos, pos);
         let lexeme = Lexeme::new(token, span);
@@ -92,7 +75,7 @@ impl LexerCtx {
     }
 }
 
-fn peek_location<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> usize {
+fn peek_offset<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> usize {
     let loc = it.peek();
     if let Some(&(n, _)) = loc {
         n
@@ -116,13 +99,13 @@ fn eat_while<'a>(f: fn(char) -> bool, it: &mut It<'a>) -> String {
 }
 
 fn lex_number<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
-    let start = ctx.current_location(it);
+    let start = ctx.current_offset(it);
 
     let num = eat_while(char::is_numeric, it);
 
-    let end = ctx.current_location(it);
+    let end = ctx.current_offset(it);
 
-    let span = Span::new(start, end);
+    let span = Span::new(start, end - 1);
 
     let token = Token::Num(num.parse().unwrap());
 
@@ -168,11 +151,11 @@ fn single_symbol<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Option<Lexeme> {
 
     for (ch, token) in SYMBOLS {
         if *ch == symbol {
-            let start = ctx.current_location(it);
+            let start = ctx.current_offset(it);
             it.next();
-            let end = ctx.current_location(it);
+            let end = ctx.current_offset(it);
 
-            let span = Span::new(start, end);
+            let span = Span::new(start, end - 1);
 
             let lexeme = Lexeme::new(token.clone(), span);
 
@@ -190,7 +173,7 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
         return try_single;
     }
 
-    let start = ctx.current_location(it);
+    let start = ctx.current_offset(it);
 
     let &(_, symbol) = it.peek().unwrap();
 
@@ -205,8 +188,8 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
         }
 
         let token = token.unwrap_or(fallback_token.clone());
-        let end = ctx.current_location(it);
-        let span = Span::new(start, end);
+        let end = ctx.current_offset(it);
+        let span = Span::new(start, end - 1);
         let lexeme = Lexeme::new(token, span);
 
         return Some(lexeme);
@@ -216,13 +199,13 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
 }
 
 fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
-    let start = ctx.current_location(it);
+    let start = ctx.current_offset(it);
 
     let id = eat_while(valid_id, it);
 
-    let end = ctx.current_location(it);
+    let end = ctx.current_offset(it);
 
-    let span = Span::new(start, end);
+    let span = Span::new(start, end - 1);
 
     for (token, str) in KEYWORDS {
         if *str == id {
@@ -254,7 +237,7 @@ fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
 }
 
 fn perform(s: &str) -> LexerCtx {
-    let mut iter = s.char_indices().peekable();
+    let mut iter = s.chars().enumerate().peekable();
     let mut ctx = LexerCtx::new(s.len());
 
     matcher(&mut iter, &mut ctx);

@@ -5,7 +5,7 @@ mod passes;
 use passes::*;
 
 mod res;
-pub use res::{Diagnostic, Res};
+pub use res::Res;
 
 use crate::ast::*;
 

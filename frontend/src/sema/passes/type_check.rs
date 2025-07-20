@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use super::{Diagnostic, Pass, Res};
+use super::{Pass, Res};
+use crate::Diagnostic;
 use crate::ast::*;
 use crate::lexer::{Span, WithSpan};
-use crate::typesystem::types::Type;
+use crate::typesystem::Type;
 
 type TypeMap = HashMap<String, Type>;
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::ir::operand::*;
-use frontend::typesystem::types::Type;
+use frontend::typesystem::Type;
 
 /// Type of the binary [`Instr`]
 pub enum BinaryType {

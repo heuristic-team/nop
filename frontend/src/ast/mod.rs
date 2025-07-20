@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::lexer::{Span, WithSpan};
-use crate::typesystem::types::*;
+use crate::typesystem::*;
 
 pub mod print;
 
