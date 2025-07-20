@@ -1,7 +1,6 @@
 mod cli;
 use cli::get_input;
 
-use frontend::ast;
 use frontend::lexer::lex;
 use frontend::parser::Parser;
 use frontend::sema;
@@ -13,10 +12,6 @@ fn main() {
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok(decls) => {
-            println!("before sema:");
-            decls.iter().for_each(ast::print::print_decl);
-            println!();
-
             let ast_res = sema::run(decls);
             if let Some(diags) = ast_res.get_diagnostics() {
                 for diag in diags {
@@ -27,7 +22,7 @@ fn main() {
             if let Some(ast) = ast_res.extract_value() {
                 println!("after sema:");
                 for decl in ast.values() {
-                    ast::print::print_decl(decl)
+                    decl.print();
                 }
 
                 // TODO: pass AST to translator

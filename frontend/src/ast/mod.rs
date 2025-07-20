@@ -78,6 +78,7 @@ pub enum Expr {
     Block {
         tp: Type,
         body: Vec<Expr>,
+        span: Span,
     },
     Num {
         tp: Type,
@@ -125,11 +126,7 @@ impl Expr {
 
     pub fn span(&self) -> Span {
         match self {
-            Expr::Block { body, .. } => {
-                let start = body.first().expect("block must not be empty").span().start;
-                let end = body.last().expect("block must not be empty").span().end;
-                Span { start, end }
-            }
+            Expr::Block { span, .. } => *span,
             Expr::Bool { span, .. } => *span,
             Expr::Num { value, .. } => value.span,
             Expr::Ref { name, .. } => name.span,

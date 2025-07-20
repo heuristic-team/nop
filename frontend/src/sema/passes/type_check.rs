@@ -10,6 +10,7 @@ type TypeMap = HashMap<String, Type>;
 
 pub struct TypeCheck {}
 
+/// Deduce and check types in declaration body
 fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &mut FnDecl) {
     let mut typemap = typemap.clone();
 
@@ -21,6 +22,7 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &
 
     process_expr(diags, &mut typemap, &mut decl.body);
 
+    // check that all `ret` expressions in function body return values of expected type
     for_each_expr(
         |e| match e {
             Expr::Ret { value, span } => {
@@ -43,6 +45,8 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &
     );
 }
 
+/// Recursively go through expression tree, deduce types where needed and possible,
+/// and check that all types are valid and compatible
 fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &mut Expr) {
     match expr {
         Expr::Num { tp, value } => {
@@ -127,7 +131,7 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
                 .to_mut()
                 .insert(name.value.clone(), tp.value.clone());
         }
-        Expr::Block { tp, body } => {
+        Expr::Block { tp, body, .. } => {
             let mut typemap = Cow::Borrowed(typemap.as_ref());
             body.iter_mut()
                 .for_each(|e| process_expr(diags, &mut typemap, e));
@@ -144,7 +148,7 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
 fn propagate_type(expr: &mut Expr, propagated: &Type) {
     match expr {
         Expr::Declare { .. } | Expr::Ret { .. } => {} // always unit and bottom respectively
-        Expr::Block { tp, body } => {
+        Expr::Block { tp, body, .. } => {
             *tp = propagated.clone();
             if let Some(e) = body.last_mut() {
                 propagate_type(e, propagated);
@@ -170,7 +174,7 @@ fn match_types(lhs: &Type, rhs: &Type) -> bool {
 
 fn merge_types<'a>(lhs: &'a Type, rhs: &'a Type) -> Option<&'a Type> {
     match (lhs, rhs) {
-        (Type::Bottom, _) | (_, Type::Bottom) => Some(&Type::Bottom),
+        (Type::Bottom, other) | (other, Type::Bottom) => Some(other),
         (a, b) if a == b => Some(a),
         _ => None,
     }
