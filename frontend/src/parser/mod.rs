@@ -328,11 +328,27 @@ impl Parser {
         let mut args = Vec::new();
 
         while Token::RParen != self.lexemes.peek().value {
+            self.eat_while(token!(Token::EOL));
+
             let arg = self.parse_expr()?;
             args.push(arg);
 
-            // TODO: trailing comma
-            self.eat_if(token!(Token::Comma));
+            self.eat_while(token!(Token::EOL));
+
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::Comma => {
+                    self.lexemes.next();
+                }
+                Token::RParen => {}
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::Comma, Token::RParen),
+                        t.to_string(),
+                        span,
+                    ));
+                }
+            }
         }
 
         let rparen_span = self

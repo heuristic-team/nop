@@ -58,7 +58,7 @@ impl LexerCtx {
         }
     }
     fn new_line<'a>(&mut self, it: &mut It<'a>) {
-        let pos = self.current_offset(it);
+        let pos = self.current_offset(it) - 1;
         let token = Token::EOL;
         let span = Span::new(pos, pos);
         let lexeme = Lexeme::new(token, span);

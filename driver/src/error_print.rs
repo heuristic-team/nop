@@ -6,8 +6,10 @@ const PREFIX_LEN: usize = 5;
 
 fn print_prefix(line: Option<usize>) {
     if let Some(line) = line {
+        // print prefix that looks like `  42 | `
         eprint!("{:>PREFIX_LEN$} | ", line);
     } else {
+        // print prefix that looks like `     | `
         eprint!("{:>PREFIX_LEN$} | ", "");
     }
 }
@@ -18,8 +20,20 @@ fn print_overlapping_lines(input: &str, span: Span) {
         .enumerate()
         .zip(input.lines())
         .skip_while(|&((_, (_, e)), _)| e < span.start)
-        .take_while(|&((_, (b, e)), _)| b <= span.start && e >= span.start)
+        .take_while(|&((_, (b, e)), _)| b <= span.end && e >= span.start)
         .map(|((i, boundaries), line)| (i, boundaries, line));
+
+    // loop below is used to make pretty underlines
+    // examples:
+    //   37 | a := foobar
+    //      |      ^~~~~^
+    //
+    //   42 | a := foo(1,
+    //      |      ^~~~~~
+    //   43 |          2,
+    //      | ~~~~~~~~~~~
+    //   44 |          3)
+    //      | ~~~~~~~~~~^
 
     let mut i;
     for (line_number, (start, end), line) in lines_to_show {
@@ -39,8 +53,13 @@ fn print_overlapping_lines(input: &str, span: Span) {
             i += 1;
         }
 
+        let mut line_chars = line.chars().skip(i - start);
         while i < end && i < span.end {
-            eprint!("~");
+            if line_chars.next().unwrap_or(0 as char).is_whitespace() {
+                eprint!(" ");
+            } else {
+                eprint!("~");
+            }
             i += 1;
         }
 
@@ -57,7 +76,7 @@ fn get_line_boundaries<'b>(source: &'b str) -> impl Iterator<Item = (usize, usiz
         .enumerate()
         .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
         .scan(0, |i: &mut usize, l: usize| {
-            let res = if l != 0 { (*i, l - 1) } else { (0, 0) };
+            let res = if l != 0 { (*i, l) } else { (0, 0) };
             *i = l + 1;
             Some(res)
         })
@@ -72,6 +91,7 @@ fn print_msg(input: &Input, span: Span, msg: &str) {
         let mut line_boundaries = get_line_boundaries(&input.contents).enumerate();
 
         let (number, (b, _)) = if span.start >= input.contents.len() {
+            // eof handling
             line_boundaries.last().unwrap()
         } else {
             line_boundaries
