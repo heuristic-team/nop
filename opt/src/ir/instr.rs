@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use crate::ir::operand::*;
-use frontend::typesystem::Type;
 
 /// Type of the binary [`Instr`]
 pub enum BinaryType {
@@ -21,22 +20,7 @@ pub enum CmpType {
     NEQ, // Not equal.
 }
 
-/// Instruction of IR
-///
-/// Encapsulates type (using [`frontend::typesystem`]) and content of the instruction.
-///
-/// Contents of the instruction consist of what instruction does, i.e. whether it's `add` or `call`
-/// instruction, for example, and of all operands and the result of the instruction to it.
-/// For further information about contents of instruction look at [`InstrContent`]
-///
-/// TODO: examplino providerino
-///
-pub struct Instr {
-    tp: Type,
-    content: InstrContent,
-}
-
-/// Content of instructions of IR
+/// Represents instruction in IR.
 ///
 /// Convention of the structure:
 /// - If instruction can have different subtype - i.e. `add` is subtype of [`InstrContent::Binary`], or ordering on
@@ -48,7 +32,7 @@ pub struct Instr {
 ///
 /// TODO: examplino providerino
 ///
-pub enum InstrContent {
+pub enum Instr {
     Binary {
         tp: BinaryType,
         dest: Var,
@@ -61,6 +45,8 @@ pub enum InstrContent {
         lhs: Op,
         rhs: Op,
     },
+    /// actually idk if mov is even going to be useful.
+    /// once we ssa there's basically zero point in it, before ssa it is sort of needed though.
     Mov {
         dest: Var,
         rhs: Op,
@@ -79,7 +65,7 @@ pub enum InstrContent {
     },
 }
 
-impl InstrContent {
+impl Instr {
     /// Creates `call` instruction.
     pub fn create_call(func: Label, dest: Var, args: Vec<Op>) -> Self {
         Self::Call { func, dest, args }
@@ -95,6 +81,7 @@ impl InstrContent {
         Self::Jmp(label)
     }
 
+    /// Creates 'branch' instruction.
     pub fn create_br(true_branch: Label, false_branch: Label, cond: Op) -> Self {
         Self::Br {
             true_branch,
@@ -103,14 +90,20 @@ impl InstrContent {
         }
     }
 
+    /// Creates return instruction that returns unit.
     pub fn create_void_ret() -> Self {
         Self::Ret(None)
     }
 
+    /// Creates return instruction that returns specified operand.
     pub fn create_ret(op: Op) -> Self {
         Self::Ret(Some(op))
     }
 
+    /// Returns whether this instruction is terminator or not.
+    ///
+    /// Terminator is instruction on which basic block has to end, i.e. either jump or branching
+    /// operation.
     pub fn is_terminator(&self) -> bool {
         match self {
             Self::Jmp(_) => true,
