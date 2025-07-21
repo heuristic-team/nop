@@ -92,7 +92,7 @@ struct HedgeBlock<'a, T: Object, U: Arena3<T>> {
   
   size: usize,
   
-  log_t_size: usize,
+  log_arena_size: usize,
   
   // only for find object by ref.
   // const
@@ -103,12 +103,12 @@ struct HedgeBlock<'a, T: Object, U: Arena3<T>> {
 }
 
 impl<T: Object, U: Arena3<T>> HedgeBlock<T, U> {
-  fn new(start: ptr, size: usize, t_size: usize) -> Self {
-    let count = size / t_size;
+  fn new(start: ptr, size: usize, log_arena_size: usize) -> Self {
+    let count = size / log_arena_size;
     let mut items = Vec::with_capacity(count);
     let mut slots = Vec::with_capacity(count);
     for i in 0..count {
-      let new_arena = U::new(start + i * t_size, size);
+      let new_arena = U::new(start + i * log_arena_size, size);
       items.push(&new_arena);
       slots.push(&new_arena);
     }
@@ -116,17 +116,17 @@ impl<T: Object, U: Arena3<T>> HedgeBlock<T, U> {
     Self {
       start,
       size,
-      log_t_size,
+      log_arena_size,
       items: items.into_boxed_slice(),
       slots: std::cell::RefCell::new(slots),
     }
   }
   
   fn arena_by_ptr(&self, ptr: ptr) -> &HedgeArena {
-    assert!(self.log_t_size);
+    assert!(self.log_arena_size);
     assert!(self.start <= ptr);
     assert!(ptr < self.start + self.size);
-    &self.items[(ptr - self.start) >> self.log_t_size]
+    &self.items[(ptr - self.start) >> self.log_arena_size]
   }
   
 }
@@ -358,7 +358,7 @@ impl<T: Object, U: Arena3<T>> HAllocator<T, U> {
         self.blocks
             .push(HedgeBlock::new(
               self.start + self.blocks.len() << Self::LOG_BLOCK_SIZE,
-              1 << Self::LOG_BLOCK_SIZE, 1 << power))
+              1 << Self::LOG_BLOCK_SIZE, power))
       }
     }
   }
