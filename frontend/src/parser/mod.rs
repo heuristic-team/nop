@@ -1,6 +1,6 @@
 use crate::ast::{BinaryOp, Expr, FnDecl, FnParam, OpPrecedence};
 use crate::lexer::{Lexeme, Lexemes, Span, Token, WithSpan};
-use crate::typesystem::types::Type;
+use crate::typesystem::Type;
 
 mod res;
 pub use res::ParseError;
@@ -157,19 +157,36 @@ impl Parser {
         let mut res = Vec::new();
 
         while Token::RParen != self.lexemes.peek().value {
-            // TODO: add `eat_while(EOL)` everywhere for flexibility
+            self.eat_while(token!(Token::EOL));
 
             let is_mut = self.eat_if(token!(Token::Mut));
+            self.eat_while(token!(Token::EOL));
 
             let name = self.parse_id()?;
+            self.eat_while(token!(Token::EOL));
+
             self.get(token!(Token::Colon), expected!(Token::Colon))?;
+            self.eat_while(token!(Token::EOL));
 
             let tp = self.parse_type()?;
+            self.eat_while(token!(Token::EOL));
 
             res.push(FnParam { is_mut, name, tp });
 
-            // TODO: trailing comma
-            self.eat_if(token!(Token::Comma));
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::Comma => {
+                    self.lexemes.next();
+                }
+                Token::RParen => {}
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::Comma, Token::RParen),
+                        t.to_string(),
+                        span,
+                    ));
+                }
+            }
         }
         self.get(token!(Token::RParen), expected!(Token::RParen))?;
 
@@ -328,11 +345,27 @@ impl Parser {
         let mut args = Vec::new();
 
         while Token::RParen != self.lexemes.peek().value {
+            self.eat_while(token!(Token::EOL));
+
             let arg = self.parse_expr()?;
             args.push(arg);
 
-            // TODO: trailing comma
-            self.eat_if(token!(Token::Comma));
+            self.eat_while(token!(Token::EOL));
+
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::Comma => {
+                    self.lexemes.next();
+                }
+                Token::RParen => {}
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::Comma, Token::RParen),
+                        t.to_string(),
+                        span,
+                    ));
+                }
+            }
         }
 
         let rparen_span = self

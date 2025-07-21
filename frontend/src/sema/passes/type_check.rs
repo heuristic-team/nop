@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use super::{Diagnostic, Pass, Res};
+use super::{Pass, Res};
+use crate::Diagnostic;
 use crate::ast::*;
 use crate::lexer::{Span, WithSpan};
-use crate::typesystem::types::Type;
+use crate::typesystem::Type;
 
 type TypeMap = HashMap<String, Type>;
 
@@ -122,7 +123,7 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
                         tp.value,
                         value.tp()
                     );
-                    let note = WithSpan::new("variable type delared here".to_string(), tp.span);
+                    let note = WithSpan::new("variable type declared here".to_string(), tp.span);
                     diags.push(Diagnostic::new_with_notes(msg, value.span(), vec![note]));
                 }
             }

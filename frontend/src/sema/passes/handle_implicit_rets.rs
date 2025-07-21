@@ -1,6 +1,6 @@
 use super::{Pass, Res};
 use crate::ast::*;
-use crate::typesystem::types::Type;
+use crate::typesystem::Type;
 
 pub struct HandleImplicitRets {}
 

@@ -3,7 +3,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::{Diagnostic, Pass, Res};
+use super::{Pass, Res};
+use crate::Diagnostic;
 use crate::ast::*;
 use crate::lexer::WithSpan;
 

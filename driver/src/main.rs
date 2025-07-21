@@ -1,26 +1,34 @@
-mod cli;
-use cli::get_input;
-
 use frontend::lexer::lex;
 use frontend::parser::Parser;
 use frontend::sema;
 
+mod cli;
+use cli::get_input;
+
+mod error_print;
+use error_print::print_error;
+
 fn main() {
-    let input = get_input();
-    let tokens = lex(&input);
+    let input = match get_input() {
+        Ok(input) => input,
+        Err(err) => {
+            eprintln!("error while reading input: {}", err);
+            std::process::exit(1);
+        }
+    };
+    let tokens = lex(&input.contents);
 
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok(decls) => {
             let ast_res = sema::run(decls);
+
             if let Some(diags) = ast_res.get_diagnostics() {
-                for diag in diags {
-                    // TODO: print diagnositcs
-                    eprintln!("{:?}", diag);
-                }
+                diags.for_each(|d| print_error(&input, d));
             }
+
             if let Some(ast) = ast_res.extract_value() {
-                println!("after sema:");
+                println!("post-sema AST:");
                 for decl in ast.values() {
                     decl.print();
                 }
@@ -28,12 +36,6 @@ fn main() {
                 // TODO: pass AST to translator
             }
         }
-        Err(err) => {
-            // TODO: print error nicely
-            eprintln!(
-                "parse error:\nexpected {:?}, but got {}",
-                err.expected, err.actual
-            );
-        }
+        Err(err) => print_error(&input, &err.into()),
     }
 }

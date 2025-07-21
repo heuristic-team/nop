@@ -1,23 +1,11 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Location {
-    pub line: usize,
-    pub symbol: usize,
-}
-
-impl Location {
-    pub fn new(line: usize, symbol: usize) -> Self {
-        Location { line, symbol }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span {
-    pub start: Location,
-    pub end: Location,
+    pub start: usize,
+    pub end: usize,
 }
 
 impl Span {
-    pub fn new(start: Location, end: Location) -> Self {
+    pub fn new(start: usize, end: usize) -> Self {
         Span { start, end }
     }
 }
