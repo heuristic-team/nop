@@ -1,4 +1,4 @@
-use std::{path::Path, process::exit};
+use std::path::Path;
 
 use clap::Parser;
 
@@ -15,22 +15,16 @@ pub struct Input {
     pub contents: String,
 }
 
-fn read_file<P: AsRef<Path>>(path: P) -> String {
-    match std::fs::read_to_string(path) {
-        Ok(contents) => contents,
-        Err(error) => {
-            eprintln!("error while reading the source file: {}", error);
-            exit(1);
-        }
-    }
+fn read_file<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
+    std::fs::read_to_string(path)
 }
 
-pub fn get_input() -> Input {
+pub fn get_input() -> std::io::Result<Input> {
     let args = Interface::parse();
-    let path = args.path;
-    let contents = read_file(&path);
-    Input {
+    let path = std::fs::canonicalize(args.path)?;
+    let contents = read_file(&path)?;
+    Ok(Input {
         name: path.to_string_lossy().into_owned(),
         contents,
-    }
+    })
 }

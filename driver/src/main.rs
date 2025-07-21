@@ -9,7 +9,13 @@ mod error_print;
 use error_print::print_error;
 
 fn main() {
-    let input = get_input();
+    let input = match get_input() {
+        Ok(input) => input,
+        Err(err) => {
+            eprintln!("error while reading input: {}", err);
+            std::process::exit(1);
+        }
+    };
     let tokens = lex(&input.contents);
 
     let parsed = Parser::new(tokens).parse();

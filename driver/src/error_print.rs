@@ -1,8 +1,12 @@
 use frontend::{Diagnostic, lexer::Span};
 
 use crate::cli::Input;
+use termion::{color, style};
 
-const PREFIX_LEN: usize = 5;
+// if we see a file which is longer than 999'999 lines, we do not care anymore
+const PREFIX_LEN: usize = 6;
+
+const UNDERLINE_COLOR: color::Green = color::Green;
 
 fn print_prefix(line: Option<usize>) {
     if let Some(line) = line {
@@ -48,8 +52,10 @@ fn print_overlapping_lines(input: &str, span: Span) {
             i += 1;
         }
 
+        let mut started_underlining = false;
         if i == span.start {
-            eprint!("^");
+            eprint!("{}^", color::Fg(UNDERLINE_COLOR));
+            started_underlining = true;
             i += 1;
         }
 
@@ -57,10 +63,11 @@ fn print_overlapping_lines(input: &str, span: Span) {
         while i < end_offset && i < span.end {
             // `unwrap_or` is needed because underline may be under a `\n`,
             // which is removed by `.lines()`
-            if line_chars.next().map(char::is_whitespace).unwrap_or(false) {
+            if line_chars.next().map(char::is_whitespace).unwrap_or(false) && !started_underlining {
                 eprint!(" ");
             } else {
-                eprint!("~");
+                eprint!("{}~", color::Fg(UNDERLINE_COLOR));
+                started_underlining = true;
             }
             i += 1;
         }
@@ -68,9 +75,9 @@ fn print_overlapping_lines(input: &str, span: Span) {
         // `span.start != span.end` to verify that we don't print "^^" under
         // a single character token
         if i == span.end && span.start != span.end {
-            eprint!("^");
+            eprint!("{}^", color::Fg(UNDERLINE_COLOR));
         }
-        eprintln!();
+        eprintln!("{}", color::Fg(color::Reset));
     }
 }
 
@@ -105,14 +112,32 @@ fn print_msg(input: &Input, span: Span, msg: &str) {
 }
 
 pub fn print_error(input: &Input, diagnostic: &Diagnostic) {
-    eprintln!("{}:", input.name);
+    eprintln!("{}{}{}:", style::Bold, input.name, style::Reset);
     print_msg(
         &input,
         diagnostic.span,
-        &format!("error: {}", diagnostic.msg),
+        &format!(
+            "{}{}error{}: {}{}",
+            style::Bold,
+            color::Fg(color::Red),
+            color::Fg(color::Reset),
+            diagnostic.msg,
+            style::Reset,
+        ),
     );
 
     for note in &diagnostic.notes {
-        print_msg(&input, note.span, &format!("note: {}", note.value));
+        print_msg(
+            &input,
+            note.span,
+            &format!(
+                "{}{}note{}: {}{}",
+                style::Bold,
+                color::Fg(color::Cyan),
+                color::Fg(color::Reset),
+                note.value,
+                style::Reset,
+            ),
+        );
     }
 }
