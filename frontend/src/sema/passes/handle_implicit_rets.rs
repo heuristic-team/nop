@@ -16,7 +16,7 @@ impl Pass for HandleImplicitRets {
 
 /// Replace implicit returns with explicit ones
 fn process_decl(decl: &mut FnDecl) {
-    let last_expr = last_expr(&mut decl.body);
+    let last_expr = find_implicit_ret_candidate(&mut decl.body);
 
     if matches!(last_expr, Expr::Ret { .. }) {
         return;
@@ -39,8 +39,8 @@ fn process_decl(decl: &mut FnDecl) {
     };
 }
 
-/// Find last expression in the expression tree
-fn last_expr(root: &mut Expr) -> &mut Expr {
+/// Find last expression in the expression tree, which may be a candidate for implicit return
+fn find_implicit_ret_candidate(root: &mut Expr) -> &mut Expr {
     match root {
         Expr::Declare { .. }
         | Expr::Ret { .. }
@@ -48,9 +48,10 @@ fn last_expr(root: &mut Expr) -> &mut Expr {
         | Expr::Bool { .. }
         | Expr::Ref { .. }
         | Expr::Call { .. }
-        | Expr::Binary { .. } => root,
-        Expr::While { body, .. } => last_expr(body),
+        | Expr::Binary { .. }
+        | Expr::While { .. }
+        | Expr::If { .. } => root,
         Expr::Block { body, .. } if body.is_empty() => root,
-        Expr::Block { body, .. } => body.last_mut().map(last_expr).unwrap(),
+        Expr::Block { body, .. } => body.last_mut().map(find_implicit_ret_candidate).unwrap(),
     }
 }

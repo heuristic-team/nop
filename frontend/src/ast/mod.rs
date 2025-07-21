@@ -86,6 +86,14 @@ pub enum Expr {
         body: Box<Expr>,
         span: Span,
     },
+    If {
+        tp: Type,
+        cond: Box<Expr>,
+        on_true: Box<Expr>,
+        on_false: Option<Box<Expr>>,
+        kw_span: Span,
+        in_stmt_pos: bool,
+    },
     Num {
         tp: Type,
         value: WithSpan<u64>,
@@ -123,7 +131,8 @@ impl Expr {
             | Expr::Ref { tp, .. }
             | Expr::Call { tp, .. }
             | Expr::Binary { tp, .. }
-            | Expr::Block { tp, .. } => tp,
+            | Expr::Block { tp, .. }
+            | Expr::If { tp, .. } => tp,
             Expr::Bool { .. } => &Type::Bool,
             Expr::Declare { .. } => &Type::Unit,
             Expr::Ret { .. } => &Type::Bottom,
@@ -139,6 +148,17 @@ impl Expr {
             Expr::Ref { name, .. } => name.span,
             Expr::Call { span, .. } => *span,
             Expr::While { span, .. } => *span,
+            Expr::If {
+                kw_span,
+                on_true,
+                on_false: None,
+                ..
+            } => Span::new(kw_span.start, on_true.span().end),
+            Expr::If {
+                kw_span,
+                on_false: Some(on_false),
+                ..
+            } => Span::new(kw_span.start, on_false.span().end),
             Expr::Binary { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
             Expr::Declare { name, value, .. } => Span::new(name.span.start, value.span().end),
             Expr::Ret { span, .. } => *span,

@@ -59,6 +59,63 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
         Expr::Ref { tp, name } => {
             *tp = typemap.get(&name.value).expect("valid reference").clone();
         }
+        Expr::If {
+            tp,
+            cond,
+            on_true,
+            on_false,
+            kw_span,
+            in_stmt_pos,
+        } => {
+            process_expr(diags, typemap, cond);
+            process_expr(diags, typemap, on_true);
+            if let Some(on_false) = on_false {
+                process_expr(diags, typemap, on_false);
+            }
+
+            if !match_types(cond.tp(), &Type::Bool) {
+                diags.push(Diagnostic::new(
+                    format!(
+                        "invalid type for condition: expected {}, but got {}",
+                        Type::Bool,
+                        cond.tp(),
+                    ),
+                    cond.span(),
+                ));
+            }
+
+            if *in_stmt_pos {
+                *tp = Type::Unit;
+            } else {
+                if let Some(on_false) = on_false {
+                    *tp = merge_types(on_true.tp(), on_false.tp())
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            let then_note = WithSpan::new(
+                                format!("`then` is {}", on_true.tp()),
+                                on_true.span(),
+                            );
+                            let else_note = WithSpan::new(
+                                format!("`else` is {}", on_false.tp()),
+                                on_false.span(),
+                            );
+                            diags.push(Diagnostic::new_with_notes(
+                                "branches types mismatch".to_string(),
+                                *kw_span,
+                                vec![then_note, else_note],
+                            ));
+
+                            Type::Bottom
+                        })
+                } else {
+                    *tp = Type::Bottom;
+                    diags.push(Diagnostic::new(
+                        "conditional expression is missing the `else` branch".to_string(),
+                        expr.span(),
+                    ));
+                }
+            }
+        }
         Expr::While { cond, body, .. } => {
             process_expr(diags, typemap, cond);
             process_expr(diags, typemap, body);
@@ -170,6 +227,17 @@ fn propagate_type(expr: &mut Expr, propagated: &Type) {
                 propagate_type(e, propagated);
             }
         }
+        Expr::If { on_false: None, .. } => {}
+        Expr::If {
+            tp,
+            on_true,
+            on_false: Some(on_false),
+            ..
+        } => {
+            *tp = propagated.clone();
+            propagate_type(on_true, propagated);
+            propagate_type(on_false, propagated);
+        }
         Expr::Num { tp, .. } => {
             *tp = propagated.clone();
         }
@@ -247,6 +315,18 @@ fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
         Expr::While { cond, body, .. } => {
             for_each_expr(f, cond);
             for_each_expr(f, body);
+        }
+        Expr::If {
+            cond,
+            on_true,
+            on_false,
+            ..
+        } => {
+            for_each_expr(f, cond);
+            for_each_expr(f, on_true);
+            if let Some(on_false) = on_false {
+                for_each_expr(f, on_false);
+            }
         }
         Expr::Block { body, .. } => {
             body.iter().for_each(|e| for_each_expr(f, e));

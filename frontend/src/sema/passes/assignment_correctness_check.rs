@@ -15,7 +15,11 @@ fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
         Expr::Num { .. } | Expr::Bool { .. } | Expr::Ret { .. } | Expr::Declare { .. } => false,
         Expr::Ref { name, .. } => ctx.contains(name.value.as_str()),
 
-        Expr::While { .. } | Expr::Call { .. } | Expr::Block { .. } | Expr::Binary { .. } => false, // this may change when we add something like pointers
+        Expr::If { .. }
+        | Expr::While { .. }
+        | Expr::Call { .. }
+        | Expr::Block { .. }
+        | Expr::Binary { .. } => false, // this may change when we add something like pointers
     }
 }
 
@@ -36,6 +40,18 @@ fn find_and_check_assignments<'a, 'b: 'a>(
         Expr::While { cond, body, .. } => {
             find_and_check_assignments(diags, ctx, cond);
             find_and_check_assignments(diags, ctx, body);
+        }
+        Expr::If {
+            cond,
+            on_true,
+            on_false,
+            ..
+        } => {
+            find_and_check_assignments(diags, ctx, cond);
+            find_and_check_assignments(diags, ctx, on_true);
+            if let Some(on_false) = on_false {
+                find_and_check_assignments(diags, ctx, on_false);
+            }
         }
         Expr::Binary {
             op:

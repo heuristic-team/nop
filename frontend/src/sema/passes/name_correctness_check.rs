@@ -31,6 +31,18 @@ fn check_references_in_expr<'a>(
             check_references_in_expr(diags, ctx, cond);
             check_references_in_expr(diags, ctx, body);
         }
+        Expr::If {
+            cond,
+            on_true,
+            on_false,
+            ..
+        } => {
+            check_references_in_expr(diags, ctx, cond);
+            check_references_in_expr(diags, ctx, on_true);
+            if let Some(on_false) = on_false {
+                check_references_in_expr(diags, ctx, on_false);
+            }
+        }
         Expr::Call { callee, args, .. } => {
             check_references_in_expr(diags, ctx, callee);
             for arg in args {
