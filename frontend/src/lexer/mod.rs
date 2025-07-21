@@ -95,9 +95,9 @@ fn lex_number<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
 
     let num = eat_while(char::is_numeric, it);
 
-    let end = ctx.current_offset(it);
+    let end = ctx.current_offset(it) - 1;
 
-    let span = Span::new(start, end - 1);
+    let span = Span::new(start, end);
 
     let token = Token::Num(num.parse().unwrap());
 
@@ -145,9 +145,9 @@ fn single_symbol<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Option<Lexeme> {
         if *ch == symbol {
             let start = ctx.current_offset(it);
             it.next();
-            let end = ctx.current_offset(it);
+            let end = ctx.current_offset(it) - 1;
 
-            let span = Span::new(start, end - 1);
+            let span = Span::new(start, end);
 
             let lexeme = Lexeme::new(token.clone(), span);
 
@@ -180,8 +180,8 @@ fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
         }
 
         let token = token.unwrap_or(fallback_token.clone());
-        let end = ctx.current_offset(it);
-        let span = Span::new(start, end - 1);
+        let end = ctx.current_offset(it) - 1;
+        let span = Span::new(start, end);
         let lexeme = Lexeme::new(token, span);
 
         return Some(lexeme);
@@ -195,9 +195,9 @@ fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
 
     let id = eat_while(valid_id, it);
 
-    let end = ctx.current_offset(it);
+    let end = ctx.current_offset(it) - 1;
 
-    let span = Span::new(start, end - 1);
+    let span = Span::new(start, end);
 
     for (token, str) in KEYWORDS {
         if *str == id {
