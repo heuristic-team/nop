@@ -80,6 +80,12 @@ pub enum Expr {
         body: Vec<Expr>,
         span: Span,
     },
+    While {
+        // tp: Type, // TODO, see issue #18
+        cond: Box<Expr>,
+        body: Box<Expr>,
+        span: Span,
+    },
     Num {
         tp: Type,
         value: WithSpan<u64>,
@@ -121,6 +127,7 @@ impl Expr {
             Expr::Bool { .. } => &Type::Bool,
             Expr::Declare { .. } => &Type::Unit,
             Expr::Ret { .. } => &Type::Bottom,
+            Expr::While { .. } => &Type::Unit, // to change, see issue #18
         }
     }
 
@@ -131,6 +138,7 @@ impl Expr {
             Expr::Num { value, .. } => value.span,
             Expr::Ref { name, .. } => name.span,
             Expr::Call { span, .. } => *span,
+            Expr::While { span, .. } => *span,
             Expr::Binary { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
             Expr::Declare { name, value, .. } => Span::new(name.span.start, value.span().end),
             Expr::Ret { span, .. } => *span,

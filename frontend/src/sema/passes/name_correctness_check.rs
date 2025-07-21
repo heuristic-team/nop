@@ -27,6 +27,10 @@ fn check_references_in_expr<'a>(
             ));
         }
         Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
+        Expr::While { cond, body, .. } => {
+            check_references_in_expr(diags, ctx, cond);
+            check_references_in_expr(diags, ctx, body);
+        }
         Expr::Call { callee, args, .. } => {
             check_references_in_expr(diags, ctx, callee);
             for arg in args {

@@ -50,6 +50,13 @@ impl Expr {
                 println!("Declare {}{} {} =", fmt_mut(*is_mut), name.value, tp.value);
                 value.print(depth + 1);
             }
+            Expr::While { cond, body, .. } => {
+                println!("while");
+                cond.print(depth + 1);
+                make_offset(depth + 1);
+                println!("do");
+                body.print(depth + 2);
+            }
             Expr::Num { tp, value } => println!("Num {} {}", value.value, tp),
             Expr::Ref { tp, name } => println!("Ref {} {}", name.value, tp),
             Expr::Call {

@@ -258,55 +258,17 @@ impl Parser {
         self.parse_full_expr(0, lhs)
     }
 
-    fn parse_block(&mut self) -> Res<Expr> {
-        let lbrace_offset = self
-            .get(token!(Token::LBrace), expected!(Token::LBrace))?
-            .span
-            .start;
-
-        let mut body = Vec::new();
-        while self.lexemes.peek().value != Token::RBrace {
-            self.eat_while(token!(Token::EOL));
-            body.push(self.parse_top_level_expr()?);
-
-            let WithSpan { value: token, span } = self.lexemes.peek();
-            match token {
-                Token::EOL => self.eat_while(token!(Token::EOL)),
-                Token::RBrace => {}
-                t => {
-                    return Err(ParseError::new(
-                        expected!(Token::EOL, Token::RBrace),
-                        t.to_string(),
-                        span,
-                    ));
-                }
-            }
-        }
-
-        let rbrace_offset = self
-            .get(token!(Token::RBrace), expected!(Token::RBrace))?
-            .span
-            .end;
-
-        let span = Span::new(lbrace_offset, rbrace_offset);
-
-        Ok(Expr::Block {
-            body,
-            tp: Type::Undef,
-            span,
-        })
-    }
-
     fn parse_term(&mut self) -> Res<Expr> {
         let WithSpan { value: token, span } = self.lexemes.peek();
         let term = match token {
-            Token::LBrace => self.parse_block(),
             Token::LParen => {
                 self.lexemes.next();
                 let res = self.parse_expr()?;
                 self.get(token!(Token::RParen), expected!(Token::RParen))?;
                 Ok(res)
             }
+            Token::LBrace => self.parse_block(),
+            Token::For => self.parse_loop(),
             Token::True => {
                 self.lexemes.next();
                 Ok(Expr::Bool { value: true, span })
@@ -377,6 +339,63 @@ impl Parser {
             tp: Type::Undef,
             callee: Box::new(callee),
             args,
+            span,
+        })
+    }
+
+    fn parse_block(&mut self) -> Res<Expr> {
+        let lbrace_offset = self
+            .get(token!(Token::LBrace), expected!(Token::LBrace))?
+            .span
+            .start;
+
+        let mut body = Vec::new();
+        while self.lexemes.peek().value != Token::RBrace {
+            self.eat_while(token!(Token::EOL));
+            body.push(self.parse_top_level_expr()?);
+
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::EOL => self.eat_while(token!(Token::EOL)),
+                Token::RBrace => {}
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::EOL, Token::RBrace),
+                        t.to_string(),
+                        span,
+                    ));
+                }
+            }
+        }
+
+        let rbrace_offset = self
+            .get(token!(Token::RBrace), expected!(Token::RBrace))?
+            .span
+            .end;
+
+        let span = Span::new(lbrace_offset, rbrace_offset);
+
+        Ok(Expr::Block {
+            body,
+            tp: Type::Undef,
+            span,
+        })
+    }
+
+    fn parse_loop(&mut self) -> Res<Expr> {
+        let kw_span = self.get(token!(Token::For), expected!(Token::For))?.span;
+
+        let cond = self.parse_expr()?;
+
+        self.get(token!(Token::Do), expected!(Token::Do))?;
+
+        let body = self.parse_expr()?;
+
+        let span = Span::new(kw_span.start, body.span().end);
+
+        Ok(Expr::While {
+            cond: Box::new(cond),
+            body: Box::new(body),
             span,
         })
     }

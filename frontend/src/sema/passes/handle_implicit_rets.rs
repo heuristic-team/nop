@@ -49,6 +49,7 @@ fn last_expr(root: &mut Expr) -> &mut Expr {
         | Expr::Ref { .. }
         | Expr::Call { .. }
         | Expr::Binary { .. } => root,
+        Expr::While { body, .. } => last_expr(body),
         Expr::Block { body, .. } if body.is_empty() => root,
         Expr::Block { body, .. } => body.last_mut().map(last_expr).unwrap(),
     }

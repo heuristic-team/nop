@@ -12,12 +12,10 @@ type MutableVars<'a> = HashSet<&'a str>;
 
 fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
     match expr {
-        Expr::Num { .. } | Expr::Bool { .. } | Expr::Ret { .. } => false,
+        Expr::Num { .. } | Expr::Bool { .. } | Expr::Ret { .. } | Expr::Declare { .. } => false,
         Expr::Ref { name, .. } => ctx.contains(name.value.as_str()),
 
-        Expr::Call { .. } | Expr::Block { .. } | Expr::Binary { .. } | Expr::Declare { .. } => {
-            false
-        } // this may change when we add something like pointers
+        Expr::While { .. } | Expr::Call { .. } | Expr::Block { .. } | Expr::Binary { .. } => false, // this may change when we add something like pointers
     }
 }
 
@@ -34,6 +32,10 @@ fn find_and_check_assignments<'a, 'b: 'a>(
             find_and_check_assignments(diags, ctx, callee);
             args.iter()
                 .for_each(|arg| find_and_check_assignments(diags, ctx, arg));
+        }
+        Expr::While { cond, body, .. } => {
+            find_and_check_assignments(diags, ctx, cond);
+            find_and_check_assignments(diags, ctx, body);
         }
         Expr::Binary {
             op:

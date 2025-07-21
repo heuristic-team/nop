@@ -25,7 +25,7 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &
 
     // check that all `ret` expressions in function body return values of expected type
     for_each_expr(
-        |e| match e {
+        &mut |e| match e {
             Expr::Ret { value, span } => {
                 let tp = value.as_ref().map(|e| e.tp()).unwrap_or(&Type::Unit);
                 if !match_types(tp, &decl.tp.value) {
@@ -58,6 +58,21 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
         Expr::Bool { .. } => {}
         Expr::Ref { tp, name } => {
             *tp = typemap.get(&name.value).expect("valid reference").clone();
+        }
+        Expr::While { cond, body, .. } => {
+            process_expr(diags, typemap, cond);
+            process_expr(diags, typemap, body);
+
+            if !match_types(cond.tp(), &Type::Bool) {
+                diags.push(Diagnostic::new(
+                    format!(
+                        "invalid type for while loop condition: expected {}, but got {}",
+                        Type::Bool,
+                        cond.tp(),
+                    ),
+                    cond.span(),
+                ));
+            }
         }
         Expr::Call {
             tp,
@@ -158,6 +173,7 @@ fn propagate_type(expr: &mut Expr, propagated: &Type) {
         Expr::Num { tp, .. } => {
             *tp = propagated.clone();
         }
+        Expr::While { .. } => {} // will change in the future, see issue #18
         Expr::Ref { .. } | Expr::Call { .. } => {} // these types should be set in `process_expr` by lookup
         Expr::Binary { op, .. } if op.value.is_cmp() => {} // always bool
         Expr::Bool { .. } => {}                    // always bool
@@ -219,24 +235,30 @@ fn check_call_args(diags: &mut Vec<Diagnostic>, call_span: Span, params: &[Type]
         .for_each(|diag| diags.push(diag));
 }
 
-fn for_each_expr(mut f: impl FnMut(&Expr), root: &Expr) {
+fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
     f(root);
     match root {
-        Expr::Declare { value, .. } => f(value),
+        Expr::Declare { value, .. } => for_each_expr(f, value),
         Expr::Ret { value, .. } => {
             if let Some(value) = value {
-                f(value);
+                for_each_expr(f, value);
             }
         }
-        Expr::Block { body, .. } => body.iter().for_each(f),
+        Expr::While { cond, body, .. } => {
+            for_each_expr(f, cond);
+            for_each_expr(f, body);
+        }
+        Expr::Block { body, .. } => {
+            body.iter().for_each(|e| for_each_expr(f, e));
+        }
         Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
         Expr::Call { callee, args, .. } => {
-            f(&callee);
-            args.iter().for_each(f)
+            for_each_expr(f, callee);
+            args.iter().for_each(|e| for_each_expr(f, e));
         }
         Expr::Binary { lhs, rhs, .. } => {
-            f(&lhs);
-            f(&rhs);
+            for_each_expr(f, lhs);
+            for_each_expr(f, rhs);
         }
     }
 }
