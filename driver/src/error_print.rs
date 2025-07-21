@@ -19,8 +19,7 @@ fn print_prefix(line: Option<usize>) {
 }
 
 fn print_overlapping_lines(input: &str, span: Span) {
-    let lines_to_show //: impl Iterator<(usize, &str)>
-    = get_line_boundaries(input)
+    let lines_to_show = get_line_boundaries(input)
         .enumerate()
         .zip(input.lines())
         .skip_while(|&((_, (_, e)), _)| e < span.start)
