@@ -87,7 +87,7 @@ fn get_line_boundaries<'b>(source: &'b str) -> impl Iterator<Item = (usize, usiz
         .enumerate()
         .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
         .scan(0, |i: &mut usize, l: usize| {
-            let res = if l != 0 { (*i, l) } else { (0, 0) };
+            let res = (*i, l);
             *i = l + 1;
             Some(res)
         })
