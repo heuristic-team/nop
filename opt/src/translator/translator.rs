@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use frontend::{
     ast::{AST, Expr, FnDecl},
@@ -13,6 +13,8 @@ use crate::ir::{
     operand::{Const, Var},
     program::Program,
 };
+
+type Defs = HashMap<String, Rc<Var>>;
 
 pub trait Translator<Input> {
     fn new() -> Self;
@@ -59,24 +61,27 @@ impl ASTTranslator {
         dest
     }
 
-    fn translate_ref(&mut self, name: String, tp: Type) -> Rc<Var> {
-        Rc::new(Var::new(name, tp))
+    fn translate_ref(&mut self, defs: &Defs, name: String) -> Rc<Var> {
+        // prob have to check there but i believe in sema(and that
+        // i didn't fuck up anywhere myself).
+        defs.get(&name).unwrap().clone()
     }
 
     fn translate_call(
         &mut self,
         func: &mut Func,
+        defs: &mut Defs,
         tp: Type,
         callee: Box<Expr>,
         args: Vec<Expr>,
     ) -> Rc<Var> {
         let dest = self.get_temp(tp);
 
-        let label = self.translate_expr(func, *callee);
+        let label = self.translate_expr(func, defs, *callee);
 
         let args: Vec<Rc<Var>> = args
             .into_iter()
-            .map(|arg| self.translate_expr(func, arg))
+            .map(|arg| self.translate_expr(func, defs, arg))
             .collect();
 
         let instr = Instr::create_call(label, dest.clone(), args);
@@ -86,24 +91,40 @@ impl ASTTranslator {
         dest
     }
 
-    fn translate_expr(&mut self, func: &mut Func, expr: Expr) -> Rc<Var> {
+    fn translate_declare(
+        &mut self,
+        func: &mut Func,
+        defs: &mut Defs,
+        name: String,
+        value: Box<Expr>,
+    ) -> Rc<Var> {
+        let expr = self.translate_expr(func, defs, *value);
+        defs.insert(name, expr.clone());
+        expr
+    }
+
+    fn translate_expr(&mut self, func: &mut Func, defs: &mut Defs, expr: Expr) -> Rc<Var> {
         match expr {
             Expr::Num { tp, value } => self.translate_num(func, value.value, tp),
-            Expr::Ref { tp, name } => self.translate_ref(name.value, tp),
+            Expr::Ref { name, .. } => self.translate_ref(defs, name.value),
             Expr::Bool { value, .. } => self.translate_bool(func, value),
             Expr::Call {
                 tp, callee, args, ..
-            } => self.translate_call(func, tp, callee, args),
+            } => self.translate_call(func, defs, tp, callee, args),
+            Expr::Declare { name, value, .. } => {
+                self.translate_declare(func, defs, name.value, value)
+            }
             _ => todo!(),
         }
     }
 
-    fn translate_function(&mut self, func: FnDecl) {
+    fn translate_function(&mut self, func: FnDecl, mut defs: Defs) {
         let mut ir_func = Func::empty(func.name.value, func.tp.value);
         for param in func.params.into_iter() {
             let param_var = Var::new(param.name.value, param.tp.value);
             ir_func.add_parameter(param_var);
         }
+        let _ = self.translate_expr(&mut ir_func, &mut defs, func.body);
     }
 }
 
@@ -114,8 +135,17 @@ impl Translator<AST> for ASTTranslator {
         }
     }
     fn translate(&mut self, input: AST) -> Program {
+        let defs: Defs = input
+            .iter()
+            .map(|(name, func)| {
+                (
+                    name.clone(),
+                    Rc::new(Var::new(func.name.value.clone(), func.tp.value.clone())),
+                )
+            })
+            .collect();
         for (_, func) in input.into_iter() {
-            self.translate_function(func);
+            self.translate_function(func, defs.clone());
         }
         todo!()
     }
