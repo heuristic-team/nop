@@ -1,0 +1,10 @@
+fn add(a: i64, b: i64) i64 = a + b
+
+fn foo(a: i64, mut b: i64) i64 = {
+    b = {
+        d := a - 4
+        b * d
+    }
+    mut c := add(a, b)
+    c
+}

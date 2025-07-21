@@ -1,12 +1,9 @@
 mod cli;
-
 use cli::get_input;
 
-use frontend::{
-    ast::{FnDecl, print::TreePrintable},
-    lexer::lex,
-    parser::Parser,
-};
+use frontend::lexer::lex;
+use frontend::parser::Parser;
+use frontend::sema;
 
 fn main() {
     let input = get_input();
@@ -15,9 +12,28 @@ fn main() {
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok(decls) => {
-            let print = <FnDecl as TreePrintable>::print_top_level;
-            decls.iter().for_each(print);
+            let ast_res = sema::run(decls);
+            if let Some(diags) = ast_res.get_diagnostics() {
+                for diag in diags {
+                    // TODO: print diagnositcs
+                    eprintln!("{:?}", diag);
+                }
+            }
+            if let Some(ast) = ast_res.extract_value() {
+                println!("after sema:");
+                for decl in ast.values() {
+                    decl.print();
+                }
+
+                // TODO: pass AST to translator
+            }
         }
-        Err(err) => todo!(), // print error nicely
+        Err(err) => {
+            // TODO: print error nicely
+            eprintln!(
+                "parse error:\nexpected {:?}, but got {}",
+                err.expected, err.actual
+            );
+        }
     }
 }

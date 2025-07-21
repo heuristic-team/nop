@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::lexer::{Span, WithSpan};
@@ -5,27 +6,29 @@ use crate::typesystem::types::*;
 
 pub mod print;
 
-pub type FnParam = (WithSpan<String>, WithSpan<Type>);
+pub type AST = HashMap<String, FnDecl>;
+
+#[derive(Debug)]
+pub struct FnParam {
+    pub is_mut: bool,
+    pub name: WithSpan<String>,
+    pub tp: WithSpan<Type>,
+}
 
 #[derive(Debug)]
 pub struct FnDecl {
     pub name: WithSpan<String>,
     pub tp: WithSpan<Type>,
     pub params: Vec<FnParam>,
-    pub body: Block,
+    pub body: Expr,
 }
 
-pub type Block = Vec<Stmt>;
-
-#[derive(Debug, Clone)]
-pub enum Stmt {
-    Declare {
-        is_mut: bool,
-        name: WithSpan<String>,
-        tp: WithSpan<Type>,
-        value: Expr,
-    },
-    Expr(Expr),
+impl FnDecl {
+    pub fn formal_type(&self) -> Type {
+        let params = self.params.iter().map(|p| &p.tp.value).cloned().collect();
+        let rettype = Box::new(self.tp.value.clone());
+        Type::Function { params, rettype }
+    }
 }
 
 pub type OpPrecedence = u8;
@@ -37,6 +40,7 @@ pub type OpPrecedence = u8;
 
 #[derive(Debug, Clone, Copy)]
 pub enum BinaryOp {
+    Assign,
     Plus,
     Minus,
     Mul,
@@ -45,18 +49,44 @@ pub enum BinaryOp {
 impl BinaryOp {
     pub fn prec(&self) -> OpPrecedence {
         match self {
+            Self::Assign => 1,
             Self::Plus => 4,
             Self::Minus => 4,
             Self::Mul => 5,
+        }
+    }
+
+    pub fn is_cmp(&self) -> bool {
+        match self {
+            _ => false,
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
+    Declare {
+        is_mut: bool,
+        name: WithSpan<String>,
+        tp: WithSpan<Type>,
+        value: Box<Expr>,
+    },
+    Ret {
+        value: Option<Box<Expr>>,
+        span: Span,
+    },
+    Block {
+        tp: Type,
+        body: Vec<Expr>,
+        span: Span,
+    },
     Num {
         tp: Type,
         value: WithSpan<u64>,
+    },
+    Bool {
+        value: bool,
+        span: Span,
     },
     Ref {
         tp: Type,
@@ -66,6 +96,7 @@ pub enum Expr {
         tp: Type,
         callee: Box<Expr>,
         args: Vec<Expr>,
+        span: Span,
     },
     // Unary {
     //     op: UnaryOp,
@@ -79,17 +110,38 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct Loop {
-    pub decl: Option<Vec<Stmt>>,
-    pub cond: Option<Vec<Expr>>,
-    pub on_iter: Option<Vec<Expr>>,
-    pub span: Span,
+impl Expr {
+    pub fn tp(&self) -> &Type {
+        match self {
+            Expr::Num { tp, .. }
+            | Expr::Ref { tp, .. }
+            | Expr::Call { tp, .. }
+            | Expr::Binary { tp, .. }
+            | Expr::Block { tp, .. } => tp,
+            Expr::Bool { .. } => &Type::Bool,
+            Expr::Declare { .. } => &Type::Unit,
+            Expr::Ret { .. } => &Type::Bottom,
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        match self {
+            Expr::Block { span, .. } => *span,
+            Expr::Bool { span, .. } => *span,
+            Expr::Num { value, .. } => value.span,
+            Expr::Ref { name, .. } => name.span,
+            Expr::Call { span, .. } => *span,
+            Expr::Binary { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
+            Expr::Declare { name, value, .. } => Span::new(name.span.start, value.span().end),
+            Expr::Ret { span, .. } => *span,
+        }
+    }
 }
 
 impl Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            BinaryOp::Assign => write!(f, "="),
             BinaryOp::Plus => write!(f, "+"),
             BinaryOp::Minus => write!(f, "-"),
             BinaryOp::Mul => write!(f, "*"),
