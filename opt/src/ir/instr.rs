@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::rc::Rc;
+
 use crate::ir::operand::*;
 
 /// Type of the binary [`Instr`]
@@ -35,26 +37,26 @@ pub enum CmpType {
 pub enum Instr {
     Binary {
         tp: BinaryType,
-        dest: Var,
+        dest: Rc<Var>,
         lhs: Op,
         rhs: Op,
     },
     Cmp {
         tp: CmpType,
-        dest: Var,
+        dest: Rc<Var>,
         lhs: Op,
         rhs: Op,
     },
     /// actually idk if mov is even going to be useful.
     /// once we ssa there's basically zero point in it, before ssa it is sort of needed though.
-    Mov {
-        dest: Var,
-        rhs: Op,
+    Const {
+        dest: Rc<Var>,
+        imm: Const,
     },
     Call {
-        func: Label,
-        dest: Var,
-        args: Vec<Op>,
+        func: Rc<Var>,
+        dest: Rc<Var>,
+        args: Vec<Rc<Var>>,
     },
     Jmp(Label),
     Ret(Option<Op>),
@@ -67,12 +69,12 @@ pub enum Instr {
 
 impl Instr {
     /// Creates `call` instruction.
-    pub fn create_call(func: Label, dest: Var, args: Vec<Op>) -> Self {
+    pub fn create_call(func: Rc<Var>, dest: Rc<Var>, args: Vec<Rc<Var>>) -> Self {
         Self::Call { func, dest, args }
     }
 
     /// Creates `cmp` instruction.
-    pub fn create_cmp(tp: CmpType, dest: Var, lhs: Op, rhs: Op) -> Self {
+    pub fn create_cmp(tp: CmpType, dest: Rc<Var>, lhs: Op, rhs: Op) -> Self {
         Self::Cmp { tp, dest, lhs, rhs }
     }
 
@@ -88,6 +90,10 @@ impl Instr {
             false_branch,
             cond,
         }
+    }
+
+    pub fn create_const(dest: Rc<Var>, imm: Const) -> Self {
+        Self::Const { dest, imm }
     }
 
     /// Creates return instruction that returns unit.

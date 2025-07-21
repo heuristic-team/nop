@@ -1,4 +1,4 @@
-use frontend::typesystem::types::Type;
+use frontend::typesystem::Type;
 
 use super::{
     instr::Instr,
@@ -41,7 +41,7 @@ impl Typed for Instr {
             Self::Br { .. } => Type::Unit,
             Self::Ret(_) => Type::Unit,
             Self::Binary { dest, .. } => dest.get_type(),
-            Self::Mov { dest, .. } => dest.get_type(),
+            Self::Const { dest, .. } => dest.get_type(),
             Self::Call { dest, .. } => dest.get_type(),
             Self::Cmp { dest, .. } => {
                 assert!(dest.get_type() == Type::Bool);

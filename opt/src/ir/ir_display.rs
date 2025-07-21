@@ -19,7 +19,7 @@ impl Display for Func {
         }
         writeln!(f, "{}", self.tp)?;
         for block in &self.blocks {
-            writeln!(f, "{}", block)?;
+            writeln!(f, "{}", block.borrow())?;
         }
         Ok(())
     }
@@ -77,8 +77,8 @@ impl Display for Instr {
                     rhs
                 )
             }
-            Self::Mov { dest, rhs } => {
-                write!(f, "{} = {} mov {}", dest, self.get_type(), rhs)
+            Self::Const { dest, imm } => {
+                write!(f, "{} = {} const {}", dest, self.get_type(), imm)
             }
             Self::Jmp(label) => {
                 write!(f, "jmp {}", label)

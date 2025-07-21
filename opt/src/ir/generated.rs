@@ -99,7 +99,7 @@ impl Instr {
         }
     );
     checker!(cmp, Self::Cmp { .. });
-    checker!(mov, Self::Mov { .. });
+    checker!(const, Self::Const { .. });
     checker!(jmp, Self::Jmp(_));
     checker!(call, Self::Call { .. });
     checker!(branch, Self::Br { .. });
