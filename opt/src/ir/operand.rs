@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use frontend::typesystem::types::Type;
+use frontend::typesystem::Type;
 
 use super::{basic_block::BasicBlock, function::Func};
 

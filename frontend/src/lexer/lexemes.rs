@@ -4,6 +4,7 @@ use super::Token;
 use super::{Span, WithSpan};
 
 pub type Lexeme = WithSpan<Token>;
+pub type LexemesState = usize;
 
 #[derive(Debug)]
 pub struct Lexemes {
@@ -67,6 +68,10 @@ impl Lexemes {
             .unwrap_or(self.eof())
     }
 
+    pub fn peek_n<const N: usize>(&self) -> [Lexeme; N] {
+        core::array::from_fn(|i| self.peek_nth(i))
+    }
+
     pub fn next(&mut self) -> Lexeme {
         let res = self.peek();
         self.skip_n(1);
@@ -75,5 +80,13 @@ impl Lexemes {
 
     pub fn skip_n(&mut self, n: usize) {
         self.offset = (self.offset + n).clamp(0, self.lexemes.len());
+    }
+
+    pub fn get_state(&self) -> LexemesState {
+        self.offset
+    }
+
+    pub fn set_state(&mut self, state: LexemesState) {
+        self.offset = state;
     }
 }

@@ -1,80 +1,86 @@
 use crate::ast::*;
 
-pub trait TreePrintable {
-    fn make_offset(depth: u8) {
-        for _ in 0..depth {
-            print!("  ");
-        }
-    }
-
-    fn print(&self, depth: u8);
-    fn print_top_level(&self) {
-        self.print(0);
+fn make_offset(depth: u8) {
+    for _ in 0..depth {
+        print!("  ");
     }
 }
 
-impl TreePrintable for FnDecl {
-    fn print(&self, depth: u8) {
-        Self::make_offset(depth);
+fn fmt_mut(is_mut: bool) -> &'static str {
+    if is_mut { "mut " } else { "" }
+}
 
+fn print_param(param: &FnParam) {
+    print!(
+        "{}{}: {}",
+        fmt_mut(param.is_mut),
+        param.name.value,
+        param.tp.value
+    );
+}
+
+impl FnDecl {
+    pub fn print(&self) {
         print!("fn {}(", self.name.value);
-        if let Some(((name, tp), init)) = self.params.split_last() {
-            for (name, tp) in init {
-                print!("{}: {}, ", name.value, tp.value);
-            }
-            print!("{}: {}", name.value, tp.value);
+
+        if let Some((last_param, init)) = self.params.split_last() {
+            init.iter().for_each(|param| {
+                print_param(param);
+                print!(", ");
+            });
+            print_param(last_param);
         }
+
         println!(") {} =", self.tp.value);
 
-        for stmt in &self.body {
-            stmt.print(depth + 1);
-        }
+        self.body.print(1);
     }
 }
 
-impl TreePrintable for Stmt {
-    fn print(&self, depth: u8) {
+impl Expr {
+    pub fn print(&self, depth: u8) {
+        make_offset(depth);
         match self {
-            Stmt::Declare {
+            Expr::Declare {
                 is_mut,
                 name,
                 tp,
                 value,
             } => {
-                Self::make_offset(depth);
-                println!(
-                    "let{} {}: {} =",
-                    if *is_mut { " mut" } else { "" },
-                    name.value,
-                    tp.value
-                );
+                println!("Declare {}{} {} =", fmt_mut(*is_mut), name.value, tp.value);
                 value.print(depth + 1);
             }
-            Stmt::Expr(expr) => expr.print(depth),
-        }
-    }
-}
-
-impl TreePrintable for Expr {
-    fn print(&self, depth: u8) {
-        Self::make_offset(depth);
-        match self {
-            Expr::Num { tp, value } => println!("{} of type {}", value.value, tp),
-            Expr::Ref { tp, name } => println!("{} of type {}", name.value, tp),
-            Expr::Call { tp, callee, args } => {
-                println!("call with result type {tp}");
+            Expr::Num { tp, value } => println!("Num {} {}", value.value, tp),
+            Expr::Ref { tp, name } => println!("Ref {} {}", name.value, tp),
+            Expr::Call {
+                tp, callee, args, ..
+            } => {
+                println!("Call {tp}");
                 callee.print(depth + 1);
-                Self::make_offset(depth + 1);
+                make_offset(depth + 1);
                 println!("with args");
                 for arg in args {
-                    arg.print(depth + 2);
+                    arg.print(depth + 2)
                 }
             }
             Expr::Binary { tp, op, lhs, rhs } => {
-                println!("{} with result type {tp}", op.value);
+                println!("Binary {} {}", op.value, tp);
                 lhs.print(depth + 1);
                 rhs.print(depth + 1);
             }
+            Expr::Block { body, tp, .. } => {
+                println!("Block {} {{", tp);
+                body.iter().for_each(|e| e.print(depth + 1));
+                make_offset(depth);
+                println!("}}");
+            }
+            Expr::Ret { value, .. } => {
+                println!("Ret");
+                if let Some(e) = value {
+                    e.print(depth + 1);
+                }
+            }
+            Expr::Bool { value, .. } => println!("Bool {value}"),
         }
     }
 }
