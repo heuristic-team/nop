@@ -14,6 +14,7 @@ impl Pass for HandleImplicitRets {
     }
 }
 
+/// Replace implicit returns with explicit ones
 fn process_decl(decl: &mut FnDecl) {
     let last_expr = last_expr(&mut decl.body);
 
@@ -25,7 +26,7 @@ fn process_decl(decl: &mut FnDecl) {
     *last_expr = match &decl.tp.value {
         Type::Unit => Expr::Block {
             tp: Type::Unit,
-
+            span: last_expr.span(),
             body: vec![
                 last_expr.clone(), // TODO: remove this clone :( pt.1
                 Expr::Ret { value: None, span },
@@ -38,16 +39,17 @@ fn process_decl(decl: &mut FnDecl) {
     };
 }
 
-fn last_expr(e: &mut Expr) -> &mut Expr {
-    match e {
+/// Find last expression in the expression tree
+fn last_expr(root: &mut Expr) -> &mut Expr {
+    match root {
         Expr::Declare { .. }
         | Expr::Ret { .. }
         | Expr::Num { .. }
         | Expr::Bool { .. }
         | Expr::Ref { .. }
         | Expr::Call { .. }
-        | Expr::Binary { .. } => e,
-        Expr::Block { body, .. } if body.is_empty() => e,
+        | Expr::Binary { .. } => root,
+        Expr::Block { body, .. } if body.is_empty() => root,
         Expr::Block { body, .. } => body.last_mut().map(last_expr).unwrap(),
     }
 }

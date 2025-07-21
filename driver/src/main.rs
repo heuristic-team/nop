@@ -1,4 +1,3 @@
-use frontend::ast;
 use frontend::lexer::lex;
 use frontend::parser::Parser;
 use frontend::sema;
@@ -25,7 +24,7 @@ fn main() {
             if let Some(ast) = ast_res.extract_value() {
                 println!("post-sema AST:");
                 for decl in ast.values() {
-                    ast::print::print_decl(decl)
+                    decl.print();
                 }
 
                 // TODO: pass AST to translator

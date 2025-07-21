@@ -12,7 +12,13 @@ pub struct NameCorrectnessCheck {}
 
 type Names<'a> = HashSet<&'a str>;
 
-fn check_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, expr: &'a Expr) {
+/// Recursively go through expression tree and check that all references are valid,
+/// adding a diagnostic otherwise
+fn check_references_in_expr<'a>(
+    diags: &mut Vec<Diagnostic>,
+    ctx: &mut Cow<Names<'a>>,
+    expr: &'a Expr,
+) {
     match expr {
         Expr::Ref { name, .. } if !ctx.contains(name.value.as_str()) => {
             diags.push(Diagnostic::new(
@@ -22,31 +28,37 @@ fn check_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, expr: &
         }
         Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
         Expr::Call { callee, args, .. } => {
-            check_expr(diags, ctx, callee);
+            check_references_in_expr(diags, ctx, callee);
             for arg in args {
-                check_expr(diags, ctx, arg);
+                check_references_in_expr(diags, ctx, arg);
             }
         }
         Expr::Binary { lhs, rhs, .. } => {
-            check_expr(diags, ctx, lhs);
-            check_expr(diags, ctx, rhs);
+            check_references_in_expr(diags, ctx, lhs);
+            check_references_in_expr(diags, ctx, rhs);
         }
         Expr::Declare { name, .. } => {
             ctx.to_mut().insert(&name.value);
         }
         Expr::Block { body, .. } => {
             let mut ctx = Cow::Borrowed(ctx.as_ref());
-            body.iter().for_each(|e| check_expr(diags, &mut ctx, e));
+            body.iter()
+                .for_each(|e| check_references_in_expr(diags, &mut ctx, e));
         }
         Expr::Ret { value, .. } => {
             if let Some(e) = value {
-                check_expr(diags, ctx, e);
+                check_references_in_expr(diags, ctx, e);
             }
         }
     }
 }
 
-fn check_decl<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, decl: &'a FnDecl) {
+/// Check declaration body for validity of references
+fn check_references_in_decl<'a>(
+    diags: &mut Vec<Diagnostic>,
+    ctx: &mut Cow<Names<'a>>,
+    decl: &'a FnDecl,
+) {
     let mut ctx = ctx.clone();
 
     for FnParam {
@@ -57,7 +69,7 @@ fn check_decl<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Cow<Names<'a>>, decl: &
         ctx.to_mut().insert(&name);
     }
 
-    check_expr(diags, &mut ctx, &decl.body);
+    check_references_in_expr(diags, &mut ctx, &decl.body);
 }
 
 impl Pass for NameCorrectnessCheck {
@@ -83,7 +95,7 @@ impl Pass for NameCorrectnessCheck {
 
         let ctx = res.keys().map(|s| s.as_str()).collect::<Names>();
         for decl in res.values() {
-            check_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
+            check_references_in_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
         }
 
         if diags.is_empty() {

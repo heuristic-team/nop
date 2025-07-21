@@ -234,7 +234,7 @@ impl Parser {
             tp: tp,
             value: Box::new(value),
         })
-    } 
+    }
 
     fn parse_expr(&mut self) -> Res<Expr> {
         let lhs = self.parse_term()?;
@@ -242,7 +242,10 @@ impl Parser {
     }
 
     fn parse_block(&mut self) -> Res<Expr> {
-        self.get(token!(Token::LBrace), expected!(Token::LBrace))?;
+        let lbrace_offset = self
+            .get(token!(Token::LBrace), expected!(Token::LBrace))?
+            .span
+            .start;
 
         let mut body = Vec::new();
         while self.lexemes.peek().value != Token::RBrace {
@@ -263,11 +266,17 @@ impl Parser {
             }
         }
 
-        self.get(token!(Token::RBrace), expected!(Token::RBrace))?;
+        let rbrace_offset = self
+            .get(token!(Token::RBrace), expected!(Token::RBrace))?
+            .span
+            .end;
+
+        let span = Span::new(lbrace_offset, rbrace_offset);
 
         Ok(Expr::Block {
             body,
             tp: Type::Undef,
+            span,
         })
     }
 
