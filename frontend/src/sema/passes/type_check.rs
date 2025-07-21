@@ -123,7 +123,7 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
                         tp.value,
                         value.tp()
                     );
-                    let note = WithSpan::new("variable type delared here".to_string(), tp.span);
+                    let note = WithSpan::new("variable type declared here".to_string(), tp.span);
                     diags.push(Diagnostic::new_with_notes(msg, value.span(), vec![note]));
                 }
             }
