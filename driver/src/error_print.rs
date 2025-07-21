@@ -31,18 +31,18 @@ fn print_overlapping_lines(input: &str, span: Span) {
     //   42 | a := foo(1,
     //      |      ^~~~~~
     //   43 |          2,
-    //      | ~~~~~~~~~~~
+    //      |          ~~
     //   44 |          3)
-    //      | ~~~~~~~~~~^
+    //      |          ~^
 
     let mut i;
-    for (line_number, (start, end), line) in lines_to_show {
-        print_prefix(Some(line_number));
+    for (number, (start_offset, end_offset), line) in lines_to_show {
+        print_prefix(Some(number));
         eprintln!("{}", line);
 
         print_prefix(None);
 
-        i = start;
+        i = start_offset;
         while i < span.start {
             eprint!(" ");
             i += 1;
@@ -53,9 +53,11 @@ fn print_overlapping_lines(input: &str, span: Span) {
             i += 1;
         }
 
-        let mut line_chars = line.chars().skip(i - start);
-        while i < end && i < span.end {
-            if line_chars.next().unwrap_or(0 as char).is_whitespace() {
+        let mut line_chars = line.chars().skip(i - start_offset);
+        while i < end_offset && i < span.end {
+            // `unwrap_or` is needed because underline may be under a `\n`,
+            // which is removed by `.lines()`
+            if line_chars.next().map(char::is_whitespace).unwrap_or(false) {
                 eprint!(" ");
             } else {
                 eprint!("~");
@@ -63,6 +65,8 @@ fn print_overlapping_lines(input: &str, span: Span) {
             i += 1;
         }
 
+        // `span.start != span.end` to verify that we don't print "^^" under
+        // a single character token
         if i == span.end && span.start != span.end {
             eprint!("^");
         }
