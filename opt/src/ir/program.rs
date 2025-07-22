@@ -1,17 +1,19 @@
 #![allow(dead_code)]
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::Control;
 use super::function::Func;
 
 /// Represents whole program that is to be optimized.
 pub struct Program {
-    pub fns: Vec<Rc<Func>>,
+    pub fns: Vec<Control<Func>>,
 }
 
 impl Program {
     /// Creates program instance with specified functions.
-    pub fn new(fns: Vec<Rc<Func>>) -> Self {
+    pub fn new(fns: Vec<Control<Func>>) -> Self {
         Program { fns }
     }
 
@@ -21,7 +23,7 @@ impl Program {
     }
 
     /// Adds function to this program.
-    pub fn add_function(&mut self, func: Rc<Func>) -> &mut Self {
+    pub fn add_function(&mut self, func: Control<Func>) -> &mut Self {
         self.fns.push(func);
         self
     }
@@ -30,8 +32,8 @@ impl Program {
     ///
     /// Useful for consuming function into program and then using reference
     /// counted pointer for labels.
-    pub fn add_owned_function(&mut self, func: Func) -> Rc<Func> {
-        let func = Rc::new(func);
+    pub fn add_owned_function(&mut self, func: Func) -> Control<Func> {
+        let func = Rc::new(RefCell::new(func));
         self.fns.push(func.clone());
         func
     }

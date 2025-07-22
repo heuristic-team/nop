@@ -7,7 +7,7 @@ use cli::get_input;
 
 mod error_print;
 use error_print::print_error;
-use opt::translator::translator::{ASTTranslator, Translator};
+use opt::translator::{ASTTranslator, Translator};
 
 fn main() {
     let input = match get_input() {

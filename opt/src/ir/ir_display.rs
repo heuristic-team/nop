@@ -15,7 +15,7 @@ use super::{
 impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for func in &self.fns {
-            writeln!(f, "{}", func)?;
+            write!(f, "{}", func.borrow())?;
         }
         Ok(())
     }
