@@ -32,11 +32,43 @@ fn process_decl(decl: &mut FnDecl) {
                 Expr::Ret { value: None, span },
             ],
         },
-        _ => Expr::Ret {
-            value: Some(Box::new(last_expr.clone())), // TODO: remove this clone :( pt.2
-            span,
-        },
+        _ => {
+            set_all_conditionals_to_expr_pos(last_expr);
+            Expr::Ret {
+                value: Some(Box::new(last_expr.clone())), // TODO: remove this clone :( pt.2
+                span,
+            }
+        }
     };
+}
+
+fn set_all_conditionals_to_expr_pos(e: &mut Expr) {
+    match e {
+        Expr::Declare { .. } | Expr::Ret { .. } => panic!("expr {} is invalid here", stringify!(e)),
+        Expr::Block { body, .. } => {
+            if let Some(last) = body.last_mut() {
+                set_all_conditionals_to_expr_pos(last);
+            }
+        }
+        Expr::While { .. } => todo!(), // find `break`s and handle them
+        Expr::If {
+            on_true,
+            on_false,
+            in_stmt_pos,
+            ..
+        } => {
+            *in_stmt_pos = false;
+            set_all_conditionals_to_expr_pos(on_true);
+            if let Some(on_false) = on_false {
+                set_all_conditionals_to_expr_pos(on_false);
+            }
+        }
+        Expr::Num { .. } | Expr::Bool { .. } | Expr::Ref { .. } | Expr::Call { .. } => {}
+        Expr::Binary { lhs, rhs, .. } => {
+            set_all_conditionals_to_expr_pos(lhs);
+            set_all_conditionals_to_expr_pos(rhs);
+        }
+    }
 }
 
 /// Find last expression in the expression tree, which may be a candidate for implicit return

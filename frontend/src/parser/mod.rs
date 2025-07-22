@@ -703,7 +703,7 @@ mod tests {
     #[test]
     fn block() {
         let mut parser = create_parser("{ mut x: i64 = 4\n  y := 2\n  42\n}");
-        let res = parser.parse_top_level_expr();
+        let res = parser.parse_term(true);
 
         println!("{:?}", res);
 
