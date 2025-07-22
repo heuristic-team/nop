@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
+use std::rc::Rc;
+
 use crate::ir::operand::*;
-use frontend::typesystem::Type;
 
 /// Type of the binary [`Instr`]
 pub enum BinaryType {
@@ -21,22 +22,7 @@ pub enum CmpType {
     NEQ, // Not equal.
 }
 
-/// Instruction of IR
-///
-/// Encapsulates type (using [`frontend::typesystem`]) and content of the instruction.
-///
-/// Contents of the instruction consist of what instruction does, i.e. whether it's `add` or `call`
-/// instruction, for example, and of all operands and the result of the instruction to it.
-/// For further information about contents of instruction look at [`InstrContent`]
-///
-/// TODO: examplino providerino
-///
-pub struct Instr {
-    tp: Type,
-    content: InstrContent,
-}
-
-/// Content of instructions of IR
+/// Represents instruction in IR.
 ///
 /// Convention of the structure:
 /// - If instruction can have different subtype - i.e. `add` is subtype of [`InstrContent::Binary`], or ordering on
@@ -48,30 +34,32 @@ pub struct Instr {
 ///
 /// TODO: examplino providerino
 ///
-pub enum InstrContent {
+pub enum Instr {
     Binary {
         tp: BinaryType,
-        dest: Var,
+        dest: Rc<Var>,
         lhs: Op,
         rhs: Op,
     },
     Cmp {
         tp: CmpType,
-        dest: Var,
+        dest: Rc<Var>,
         lhs: Op,
         rhs: Op,
     },
-    Mov {
-        dest: Var,
-        rhs: Op,
+    /// actually idk if mov is even going to be useful.
+    /// once we ssa there's basically zero point in it, before ssa it is sort of needed though.
+    Const {
+        dest: Rc<Var>,
+        imm: Const,
     },
     Call {
-        func: Label,
-        dest: Var,
-        args: Vec<Op>,
+        func: Rc<Var>,
+        dest: Rc<Var>,
+        args: Vec<Rc<Var>>,
     },
     Jmp(Label),
-    Ret(Option<Op>),
+    Ret(Option<Rc<Var>>),
     Br {
         true_branch: Label,
         false_branch: Label,
@@ -79,14 +67,14 @@ pub enum InstrContent {
     },
 }
 
-impl InstrContent {
+impl Instr {
     /// Creates `call` instruction.
-    pub fn create_call(func: Label, dest: Var, args: Vec<Op>) -> Self {
+    pub fn create_call(func: Rc<Var>, dest: Rc<Var>, args: Vec<Rc<Var>>) -> Self {
         Self::Call { func, dest, args }
     }
 
     /// Creates `cmp` instruction.
-    pub fn create_cmp(tp: CmpType, dest: Var, lhs: Op, rhs: Op) -> Self {
+    pub fn create_cmp(tp: CmpType, dest: Rc<Var>, lhs: Op, rhs: Op) -> Self {
         Self::Cmp { tp, dest, lhs, rhs }
     }
 
@@ -95,6 +83,7 @@ impl InstrContent {
         Self::Jmp(label)
     }
 
+    /// Creates 'branch' instruction.
     pub fn create_br(true_branch: Label, false_branch: Label, cond: Op) -> Self {
         Self::Br {
             true_branch,
@@ -103,14 +92,29 @@ impl InstrContent {
         }
     }
 
+    pub fn create_const(dest: Rc<Var>, imm: Const) -> Self {
+        Self::Const { dest, imm }
+    }
+
+    /// Creates return instruction that returns unit.
     pub fn create_void_ret() -> Self {
         Self::Ret(None)
     }
 
-    pub fn create_ret(op: Op) -> Self {
-        Self::Ret(Some(op))
+    /// Creates return instruction that returns specified operand.
+    pub fn create_specified_ret(var: Rc<Var>) -> Self {
+        Self::Ret(Some(var))
     }
 
+    /// Creates return instruction that returns specified operand.
+    pub fn create_ret(var: Option<Rc<Var>>) -> Self {
+        Self::Ret(var)
+    }
+
+    /// Returns whether this instruction is terminator or not.
+    ///
+    /// Terminator is instruction on which basic block has to end, i.e. either jump or branching
+    /// operation.
     pub fn is_terminator(&self) -> bool {
         match self {
             Self::Jmp(_) => true,

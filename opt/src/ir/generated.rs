@@ -1,5 +1,7 @@
+use std::rc::Rc;
+
 use super::{
-    instr::{BinaryType, InstrContent},
+    instr::{BinaryType, Instr},
     operand::{Const, Label, Op, Var},
 };
 
@@ -44,7 +46,7 @@ macro_rules! binary_factory {
         paste::paste! {
             #[doc ="Creates binary instruction "]
             #[doc = stringify!($name)]
-            pub fn [<create_ $name>](dest: Var, lhs: Op, rhs: Op) -> Self {
+            pub fn [<create_ $name>](dest: Rc<Var>, lhs: Op, rhs: Op) -> Self {
                 Self::Binary {tp: $tp, dest, lhs, rhs}
             }
         }
@@ -64,7 +66,7 @@ impl Const {
 }
 
 /// Generated methods go here.
-impl InstrContent {
+impl Instr {
     binary_factory!(add, BinaryType::Add);
     binary_factory!(sub, BinaryType::Sub);
     binary_factory!(div, BinaryType::Div);
@@ -99,7 +101,7 @@ impl InstrContent {
         }
     );
     checker!(cmp, Self::Cmp { .. });
-    checker!(mov, Self::Mov { .. });
+    checker!(const, Self::Const { .. });
     checker!(jmp, Self::Jmp(_));
     checker!(call, Self::Call { .. });
     checker!(branch, Self::Br { .. });

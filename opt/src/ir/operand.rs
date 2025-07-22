@@ -10,14 +10,14 @@ use super::{basic_block::BasicBlock, function::Func};
 ///
 /// It always is either constant or variable.
 pub enum Op {
-    Variable(Var),
+    Variable(Rc<Var>),
     Const(Const),
 }
 
 impl Op {
     /// Creates variable operand with a specified type.
     pub fn create_var(name: String, tp: Type) -> Self {
-        Self::Variable(Var::new(name, tp))
+        Self::Variable(Rc::new(Var::new(name, tp)))
     }
 
     /// Creates constant integer operand.
