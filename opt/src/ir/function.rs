@@ -17,7 +17,7 @@ pub struct Func {
     pub name: String,
     pub tp: Type,
     pub blocks: Vec<Rc<RefCell<BasicBlock>>>,
-    pub params: Vec<Var>,
+    pub params: Vec<Rc<Var>>,
 }
 
 impl Func {
@@ -27,8 +27,11 @@ impl Func {
         block
     }
 
+    pub fn pop_block(&mut self) {
+        self.blocks.pop();
+    }
+
     pub fn add_to_current_block(&mut self, instr: Instr) -> &mut Self {
-        assert!(self.blocks.len() > 0);
         self.blocks.last().unwrap().borrow_mut().add_instr(instr); // TODO: print something nice
         self
     }
@@ -47,7 +50,7 @@ impl Func {
         name: String,
         tp: Type,
         blocks: Vec<Rc<RefCell<BasicBlock>>>,
-        params: Vec<Var>,
+        params: Vec<Rc<Var>>,
     ) -> Self {
         Self {
             name,
@@ -78,7 +81,7 @@ impl Func {
     /// Adds parameter to this function.
     ///
     /// Returns mutable reference to this function for `Builder` pattern.
-    pub fn add_parameter(&mut self, param: Var) -> &mut Self {
+    pub fn add_parameter(&mut self, param: Rc<Var>) -> &mut Self {
         self.params.push(param);
         self
     }

@@ -7,9 +7,19 @@ use super::{
     function::Func,
     instr::{CmpType, Instr},
     operand::{Const, Label, Op, Var},
+    program::Program,
 };
 
 ///! File with implementations of [`Display`] trait for IR entities.
+
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for func in &self.fns {
+            writeln!(f, "{}", func)?;
+        }
+        Ok(())
+    }
+}
 
 impl Display for Func {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

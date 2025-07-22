@@ -7,6 +7,7 @@ use cli::get_input;
 
 mod error_print;
 use error_print::print_error;
+use opt::translator::translator::{ASTTranslator, Translator};
 
 fn main() {
     let input = match get_input() {
@@ -33,6 +34,9 @@ fn main() {
                     decl.print();
                 }
 
+                let mut translator = ASTTranslator::new();
+                let program = translator.translate(ast);
+                println!("{}", program);
                 // TODO: pass AST to translator
             }
         }

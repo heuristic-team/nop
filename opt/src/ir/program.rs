@@ -6,7 +6,7 @@ use super::function::Func;
 
 /// Represents whole program that is to be optimized.
 pub struct Program {
-    fns: Vec<Rc<Func>>,
+    pub fns: Vec<Rc<Func>>,
 }
 
 impl Program {

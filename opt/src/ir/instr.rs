@@ -59,7 +59,7 @@ pub enum Instr {
         args: Vec<Rc<Var>>,
     },
     Jmp(Label),
-    Ret(Option<Op>),
+    Ret(Option<Rc<Var>>),
     Br {
         true_branch: Label,
         false_branch: Label,
@@ -102,8 +102,13 @@ impl Instr {
     }
 
     /// Creates return instruction that returns specified operand.
-    pub fn create_ret(op: Op) -> Self {
-        Self::Ret(Some(op))
+    pub fn create_specified_ret(var: Rc<Var>) -> Self {
+        Self::Ret(Some(var))
+    }
+
+    /// Creates return instruction that returns specified operand.
+    pub fn create_ret(var: Option<Rc<Var>>) -> Self {
+        Self::Ret(var)
     }
 
     /// Returns whether this instruction is terminator or not.
