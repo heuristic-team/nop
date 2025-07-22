@@ -15,6 +15,11 @@ pub enum Token {
     Ret,    // `ret`
     True,   // `true`
     False,  // `false`
+    For,    // `for`
+    Do,     // `do`
+    If,     // `if`
+    Then,   // `then`
+    Else,   // `else`
     EOL,
     LParen, // `(`
     RParen, // `)`
@@ -45,6 +50,11 @@ impl Token {
             Token::Ret => "`ret`",
             Token::True => "`true`",
             Token::False => "`false`",
+            Token::For => "`for`",
+            Token::Do => "`do`",
+            Token::If => "`if`",
+            Token::Then => "`then`",
+            Token::Else => "`else`",
             Token::EOL => "end of line",
             Token::LParen => "`(`",
             Token::RParen => "`)`",

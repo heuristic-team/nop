@@ -17,6 +17,11 @@ const KEYWORDS: &[(Token, &str)] = &[
     (Token::Ret, "ret"),
     (Token::True, "true"),
     (Token::False, "false"),
+    (Token::For, "for"),
+    (Token::Do, "do"),
+    (Token::If, "if"),
+    (Token::Then, "then"),
+    (Token::Else, "else"),
 ];
 
 const SYMBOLS: &[(char, Token)] = &[
