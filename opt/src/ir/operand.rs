@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use frontend::typesystem::Type;
 
-use super::{basic_block::BasicBlock, function::Func};
+use super::{Control, basic_block::BasicBlock, function::Func};
 
 /// Standard operand of the IR instruction.
 ///
@@ -69,18 +69,18 @@ impl Const {
 
 /// Represents label for jump instructions in IR.
 pub enum Label {
-    Fn(Rc<Func>),
-    Block(Rc<BasicBlock>),
+    Fn(Control<Func>),
+    Block(Control<BasicBlock>),
 }
 
 impl Label {
     /// Creates label of function.
-    pub fn function_label(func: Rc<Func>) -> Self {
+    pub fn function_label(func: Control<Func>) -> Self {
         Self::Fn(func)
     }
 
     /// Creates label of basic block.
-    pub fn block_label(block: Rc<BasicBlock>) -> Self {
+    pub fn block_label(block: Control<BasicBlock>) -> Self {
         Self::Block(block)
     }
 }
