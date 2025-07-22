@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 frontend = { path = "../frontend" }
+opt = { path = "../opt" }
 clap = { version = "4.5.39", features = ["derive"] }
 termion = "4.0.5"
 

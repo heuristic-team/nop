@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::ir::basic_block::BasicBlock;
 use frontend::typesystem::Type;
 
-use super::operand::Var;
+use super::{Control, instr::Instr, operand::Var};
 
 /// Represents function inside IR.
 ///
@@ -16,11 +16,25 @@ use super::operand::Var;
 pub struct Func {
     pub name: String,
     pub tp: Type,
-    pub blocks: Vec<Rc<BasicBlock>>,
-    pub params: Vec<Var>,
+    pub blocks: Vec<Control<BasicBlock>>,
+    pub params: Vec<Rc<Var>>,
 }
 
 impl Func {
+    pub fn start_block(&mut self, name: String) -> Control<BasicBlock> {
+        let block = Rc::new(RefCell::new(BasicBlock::empty(name)));
+        self.blocks.push(block.clone());
+        block
+    }
+
+    pub fn pop_block(&mut self) -> Option<Control<BasicBlock>> {
+        self.blocks.pop()
+    }
+
+    pub fn add_to_current_block(&mut self, instr: Instr) -> &mut Self {
+        self.blocks.last().unwrap().borrow_mut().add_instr(instr); // TODO: print something nice
+        self
+    }
     /// Creates new function with specified name and type.
     pub fn empty(name: String, tp: Type) -> Self {
         Self {
@@ -32,7 +46,12 @@ impl Func {
     }
 
     /// Creates new function with specified name type and blocks.
-    pub fn new(name: String, tp: Type, blocks: Vec<Rc<BasicBlock>>, params: Vec<Var>) -> Self {
+    pub fn new(
+        name: String,
+        tp: Type,
+        blocks: Vec<Control<BasicBlock>>,
+        params: Vec<Rc<Var>>,
+    ) -> Self {
         Self {
             name,
             tp,
@@ -44,7 +63,7 @@ impl Func {
     /// Adds basic block to blocks of this function.
     ///
     /// Returns mutable reference to this function for `Builder` pattern.
-    pub fn add_block(&mut self, block: Rc<BasicBlock>) -> &mut Self {
+    pub fn add_block(&mut self, block: Control<BasicBlock>) -> &mut Self {
         self.blocks.push(block);
         self
     }
@@ -53,8 +72,8 @@ impl Func {
     ///
     /// Useful for consuming block into function and then using reference
     /// counted pointer for labels.
-    pub fn add_owned_block(&mut self, block: BasicBlock) -> Rc<BasicBlock> {
-        let block = Rc::new(block);
+    pub fn add_owned_block(&mut self, block: BasicBlock) -> Rc<RefCell<BasicBlock>> {
+        let block = Rc::new(RefCell::new(block));
         self.blocks.push(block.clone());
         block
     }
@@ -62,7 +81,7 @@ impl Func {
     /// Adds parameter to this function.
     ///
     /// Returns mutable reference to this function for `Builder` pattern.
-    pub fn add_parameter(&mut self, param: Var) -> &mut Self {
+    pub fn add_parameter(&mut self, param: Rc<Var>) -> &mut Self {
         self.params.push(param);
         self
     }
