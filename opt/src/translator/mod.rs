@@ -183,6 +183,7 @@ impl ASTTranslator {
                 self.translate_binary(func, defs, op.value, lhs, rhs)
             }
             Expr::Block { body, .. } => self.translate_block(func, defs, body),
+            Expr::While { .. } | Expr::If { .. } => todo!(),
         }
     }
 
