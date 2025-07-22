@@ -27,6 +27,15 @@ impl Func {
         block
     }
 
+    pub fn get_nth_last_block(&mut self, index: usize) -> Option<&mut Control<BasicBlock>> {
+        let len = self.blocks.len() - index;
+        self.blocks.get_mut(len)
+    }
+
+    pub fn current_block(&mut self) -> Option<&mut Control<BasicBlock>> {
+        self.blocks.last_mut()
+    }
+
     pub fn pop_block(&mut self) -> Option<Control<BasicBlock>> {
         self.blocks.pop()
     }
