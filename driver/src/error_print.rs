@@ -24,7 +24,7 @@ fn print_overlapping_lines(input: &str, span: Span) {
         .zip(input.lines())
         .skip_while(|&((_, (_, e)), _)| e < span.start)
         .take_while(|&((_, (b, e)), _)| b <= span.end && e >= span.start)
-        .map(|((i, boundaries), line)| (i, boundaries, line));
+        .map(|((i, boundaries), line)| (i + 1, boundaries, line));
 
     // loop below is used to make pretty underlines
     // examples:

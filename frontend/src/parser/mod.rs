@@ -199,8 +199,9 @@ impl Parser {
             | [Token::Id(_), Token::Define, _]
             | [Token::Mut, Token::Id(_), Token::Colon]
             | [Token::Id(_), Token::Colon, _] => self.parse_declaration_expr(),
+
             [Token::Ret, ..] => self.parse_ret_expr(),
-            _ => self.parse_expr(),
+            _ => self.parse_expr(true),
         }
     }
 
@@ -208,7 +209,7 @@ impl Parser {
         let WithSpan { span: kw_span, .. } = self.get(token!(Token::Ret), expected!(Token::Ret))?;
 
         let state = self.lexemes.get_state();
-        let value = self.parse_expr().ok().map(|e| Box::new(e));
+        let value = self.parse_expr(false).ok().map(|e| Box::new(e));
         let span = match value {
             Some(ref e) => Span::new(kw_span.start, e.span().end),
             None => {
@@ -244,7 +245,7 @@ impl Parser {
             }
         };
 
-        let value = self.parse_expr()?;
+        let value = self.parse_expr(false)?;
         Ok(Expr::Declare {
             is_mut,
             name: name,
@@ -253,9 +254,95 @@ impl Parser {
         })
     }
 
-    fn parse_expr(&mut self) -> Res<Expr> {
-        let lhs = self.parse_term()?;
+    fn parse_expr(&mut self, in_stmt_pos: bool) -> Res<Expr> {
+        let lhs = self.parse_term(in_stmt_pos)?;
         self.parse_full_expr(0, lhs)
+    }
+
+    fn parse_term(&mut self, in_stmt_pos: bool) -> Res<Expr> {
+        let WithSpan { value: token, span } = self.lexemes.peek();
+        let term = match token {
+            Token::LParen => {
+                self.lexemes.next();
+                let res = self.parse_expr(in_stmt_pos)?;
+                self.get(token!(Token::RParen), expected!(Token::RParen))?;
+                Ok(res)
+            }
+            Token::LBrace => self.parse_block(),
+            Token::If => self.parse_conditional(in_stmt_pos),
+            Token::For => self.parse_loop(),
+            Token::True => {
+                self.lexemes.next();
+                Ok(Expr::Bool { value: true, span })
+            }
+            Token::False => {
+                self.lexemes.next();
+                Ok(Expr::Bool { value: false, span })
+            }
+            Token::Id(name) => {
+                self.lexemes.next();
+                Ok(Expr::Ref {
+                    tp: Type::Undef,
+                    name: WithSpan::new(name, span),
+                })
+            }
+            Token::Num(value) => {
+                self.lexemes.next();
+                Ok(Expr::Num {
+                    tp: Type::I64, // TODO: unhardcode this
+                    value: WithSpan::new(value, span),
+                })
+            }
+            t => Err(ParseError::new(expected!("term"), t.to_string(), span)),
+        }?;
+
+        if let Token::LParen = self.lexemes.peek().value {
+            self.parse_call_expr(term)
+        } else {
+            Ok(term)
+        }
+    }
+
+    fn parse_call_expr(&mut self, callee: Expr) -> Res<Expr> {
+        self.get(token!(Token::LParen), expected!(Token::LParen))?;
+
+        let mut args = Vec::new();
+
+        while Token::RParen != self.lexemes.peek().value {
+            self.eat_while(token!(Token::EOL));
+
+            let arg = self.parse_expr(false)?;
+            args.push(arg);
+
+            self.eat_while(token!(Token::EOL));
+
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::Comma => {
+                    self.lexemes.next();
+                }
+                Token::RParen => {}
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::Comma, Token::RParen),
+                        t.to_string(),
+                        span,
+                    ));
+                }
+            }
+        }
+
+        let rparen_span = self
+            .get(token!(Token::RParen), expected!(Token::RParen))?
+            .span;
+        let span = Span::new(callee.span().start, rparen_span.end);
+
+        Ok(Expr::Call {
+            tp: Type::Undef,
+            callee: Box::new(callee),
+            args,
+            span,
+        })
     }
 
     fn parse_block(&mut self) -> Res<Expr> {
@@ -297,87 +384,46 @@ impl Parser {
         })
     }
 
-    fn parse_term(&mut self) -> Res<Expr> {
-        let WithSpan { value: token, span } = self.lexemes.peek();
-        let term = match token {
-            Token::LBrace => self.parse_block(),
-            Token::LParen => {
-                self.lexemes.next();
-                let res = self.parse_expr()?;
-                self.get(token!(Token::RParen), expected!(Token::RParen))?;
-                Ok(res)
-            }
-            Token::True => {
-                self.lexemes.next();
-                Ok(Expr::Bool { value: true, span })
-            }
-            Token::False => {
-                self.lexemes.next();
-                Ok(Expr::Bool { value: false, span })
-            }
-            Token::Id(name) => {
-                self.lexemes.next();
-                Ok(Expr::Ref {
-                    tp: Type::Undef,
-                    name: WithSpan::new(name, span),
-                })
-            }
-            Token::Num(value) => {
-                self.lexemes.next();
-                Ok(Expr::Num {
-                    tp: Type::I64, // TODO: unhardcode this
-                    value: WithSpan::new(value, span),
-                })
-            }
-            t => Err(ParseError::new(expected!("term"), t.to_string(), span)),
-        }?;
+    fn parse_loop(&mut self) -> Res<Expr> {
+        let kw_span = self.get(token!(Token::For), expected!(Token::For))?.span;
 
-        if let Token::LParen = self.lexemes.peek().value {
-            self.parse_call_expr(term)
-        } else {
-            Ok(term)
-        }
+        let cond = self.parse_expr(false)?;
+
+        self.get(token!(Token::Do), expected!(Token::Do))?;
+
+        let body = self.parse_expr(true)?;
+
+        let span = Span::new(kw_span.start, body.span().end);
+
+        Ok(Expr::While {
+            cond: Box::new(cond),
+            body: Box::new(body),
+            span,
+        })
     }
 
-    fn parse_call_expr(&mut self, callee: Expr) -> Res<Expr> {
-        self.get(token!(Token::LParen), expected!(Token::LParen))?;
+    fn parse_conditional(&mut self, in_stmt_pos: bool) -> Res<Expr> {
+        let kw_span = self.get(token!(Token::If), expected!(Token::If))?.span;
 
-        let mut args = Vec::new();
+        let cond = self.parse_expr(false)?;
 
-        while Token::RParen != self.lexemes.peek().value {
-            self.eat_while(token!(Token::EOL));
+        self.get(token!(Token::Then), expected!(Token::Then))?;
 
-            let arg = self.parse_expr()?;
-            args.push(arg);
+        let on_true = self.parse_expr(in_stmt_pos)?;
 
-            self.eat_while(token!(Token::EOL));
+        let on_false = if self.eat_if(token!(Token::Else)) {
+            Some(self.parse_expr(in_stmt_pos)?)
+        } else {
+            None
+        };
 
-            let WithSpan { value: token, span } = self.lexemes.peek();
-            match token {
-                Token::Comma => {
-                    self.lexemes.next();
-                }
-                Token::RParen => {}
-                t => {
-                    return Err(ParseError::new(
-                        expected!(Token::Comma, Token::RParen),
-                        t.to_string(),
-                        span,
-                    ));
-                }
-            }
-        }
-
-        let rparen_span = self
-            .get(token!(Token::RParen), expected!(Token::RParen))?
-            .span;
-        let span = Span::new(callee.span().start, rparen_span.end);
-
-        Ok(Expr::Call {
+        Ok(Expr::If {
             tp: Type::Undef,
-            callee: Box::new(callee),
-            args,
-            span,
+            cond: Box::new(cond),
+            on_true: Box::new(on_true),
+            on_false: on_false.map(|e| Box::new(e)),
+            kw_span,
+            in_stmt_pos,
         })
     }
 
@@ -397,7 +443,7 @@ impl Parser {
 
             let op = self.get_map(|t| bin_op_from_token(&t), expected!("binary operator"))?;
 
-            let rhs = self.parse_term()?;
+            let rhs = self.parse_term(false)?;
             let rhs = if self.get_cur_op_prec().is_some_and(|prec| cur_prec < prec) {
                 self.parse_full_expr(cur_prec + 1, rhs)?
             } else {
@@ -478,7 +524,7 @@ mod tests {
     fn call_expr() {
         let mut parser = create_parser("()");
 
-        let callee = create_parser("42").parse_expr().unwrap();
+        let callee = create_parser("42").parse_expr(true).unwrap();
         let res = parser.parse_call_expr(callee.clone());
         assert!(res.is_ok());
         let expr = res.unwrap();
@@ -537,7 +583,7 @@ mod tests {
     #[test]
     fn term() {
         let mut parser = create_parser("4");
-        let res = parser.parse_term();
+        let res = parser.parse_term(true);
         assert!(res.is_ok());
         let expr = res.unwrap();
         assert!(matches!(
@@ -549,7 +595,7 @@ mod tests {
         ));
 
         let mut parser = create_parser("foo");
-        let res = parser.parse_term();
+        let res = parser.parse_term(true);
         assert!(res.is_ok());
         let expr = res.unwrap();
         assert!(
@@ -565,7 +611,7 @@ mod tests {
         );
 
         let mut parser = create_parser("(4 + 5)");
-        let res = parser.parse_term();
+        let res = parser.parse_term(true);
         assert!(res.is_ok());
         let expr = res.unwrap();
 
@@ -601,7 +647,7 @@ mod tests {
     #[test]
     fn parse_expr() {
         let mut parser = create_parser("4 + 5 * 6");
-        let res = parser.parse_expr();
+        let res = parser.parse_expr(true);
         assert!(res.is_ok());
         let expr = res.unwrap();
 
@@ -657,7 +703,7 @@ mod tests {
     #[test]
     fn block() {
         let mut parser = create_parser("{ mut x: i64 = 4\n  y := 2\n  42\n}");
-        let res = parser.parse_top_level_expr();
+        let res = parser.parse_term(true);
 
         println!("{:?}", res);
 

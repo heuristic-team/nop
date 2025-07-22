@@ -50,6 +50,32 @@ impl Expr {
                 println!("Declare {}{} {} =", fmt_mut(*is_mut), name.value, tp.value);
                 value.print(depth + 1);
             }
+            Expr::While { cond, body, .. } => {
+                println!("While");
+                cond.print(depth + 1);
+                make_offset(depth);
+                println!("do");
+                body.print(depth + 1);
+            }
+            Expr::If {
+                tp,
+                cond,
+                on_true,
+                on_false,
+                ..
+            } => {
+                println!("If {}", tp);
+                cond.print(depth + 1);
+                make_offset(depth);
+                println!("then");
+                on_true.print(depth + 1);
+
+                if let Some(on_false) = on_false {
+                    make_offset(depth);
+                    println!("else");
+                    on_false.print(depth + 1);
+                }
+            }
             Expr::Num { tp, value } => println!("Num {} {}", value.value, tp),
             Expr::Ref { tp, name } => println!("Ref {} {}", name.value, tp),
             Expr::Call {
@@ -57,10 +83,10 @@ impl Expr {
             } => {
                 println!("Call {tp}");
                 callee.print(depth + 1);
-                make_offset(depth + 1);
+                make_offset(depth);
                 println!("with args");
                 for arg in args {
-                    arg.print(depth + 2)
+                    arg.print(depth + 1)
                 }
             }
             Expr::Binary { tp, op, lhs, rhs } => {
