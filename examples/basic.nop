@@ -8,6 +8,21 @@ fn foo(a: i64, mut b: i64) i64 = {
     for true do {
       mut g := 34
     }
+    if true then {
+      mut oleg := 48
+    }
+
+    if true then {
+      mut oleg1 := 49
+    } else {
+      mut oleg2 := 50
+    }
+
+    if true then {
+      mut oleezha := 499
+    } else if true then {
+      mut oleeeezha := 5000
+    }
     mut c: i64 = add(a, b)
     mut f := add(c, b)
     c

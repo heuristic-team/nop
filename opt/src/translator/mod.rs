@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, fmt::format, rc::Rc};
 
 use frontend::{
     ast::{AST, BinaryOp, Expr, FnDecl},
@@ -22,6 +22,7 @@ pub trait Translator<Input> {
 struct Namer {
     current_id: u64,
     loop_id: u64,
+    if_id: u64,
 }
 
 impl Namer {
@@ -29,11 +30,13 @@ impl Namer {
         Namer {
             current_id: 0,
             loop_id: 0,
+            if_id: 0,
         }
     }
     fn reset(&mut self) {
         self.current_id = 0;
         self.loop_id = 0;
+        self.if_id = 0;
     }
     fn name_temp(&mut self) -> String {
         let ret = format!("%{}", self.current_id);
@@ -46,6 +49,13 @@ impl Namer {
         let end = format!("%loop.end{}", self.loop_id);
         self.loop_id += 1;
         (cond, body, end)
+    }
+    fn if_names(&mut self) -> (String, String, String) {
+        let true_branch = format!("%if.true{}", self.if_id);
+        let false_branch = format!("%if.false{}", self.if_id);
+        let out_branch = format!("%if.out{}", self.if_id);
+        self.if_id += 1;
+        (true_branch, false_branch, out_branch)
     }
 }
 
@@ -201,6 +211,66 @@ impl ASTTranslator {
         body
     }
 
+    fn translate_if(
+        &mut self,
+        func: &mut Func,
+        defs: &mut Defs,
+        cond: Box<Expr>,
+        if_true: Box<Expr>,
+        if_false: Option<Box<Expr>>,
+    ) -> Rc<Var> {
+        let cond = self.translate_expr(func, defs, *cond);
+
+        let (true_name, false_name, out_name) = self.namer.if_names();
+
+        let cond_block = func.current_block().unwrap().clone();
+
+        let true_block = func.start_block(true_name);
+
+        let ret = self.translate_expr(func, defs, *if_true);
+
+        if if_false.is_some() {
+            let false_block = func.start_block(false_name);
+
+            let true_label = Label::block_label(true_block.clone());
+            let false_label = Label::block_label(false_block);
+
+            let branch = Instr::create_br(true_label, false_label, cond);
+
+            cond_block.borrow_mut().add_instr(branch);
+            // so here we should do SOMETHING about the fact that it
+            // could return values too.
+            self.translate_expr(func, defs, *if_false.unwrap());
+
+            let current_block = func.current_block().unwrap().clone();
+
+            let out_block = func.start_block(out_name);
+
+            let out_label = Label::block_label(out_block);
+
+            true_block
+                .borrow_mut()
+                .add_instr(Instr::create_jmp(out_label.clone()));
+
+            current_block
+                .borrow_mut()
+                .add_instr(Instr::create_jmp(out_label));
+
+            ret // YEA SO HERE WE SHOULD RETURN SOMETHING ELSE
+        } else {
+            let out_block = func.start_block(out_name);
+            let true_label = Label::block_label(true_block.clone());
+            let out_label = Label::block_label(out_block);
+            let branch = Instr::create_br(true_label, out_label.clone(), cond);
+
+            cond_block.borrow_mut().add_instr(branch);
+            true_block
+                .borrow_mut()
+                .add_instr(Instr::create_jmp(out_label));
+            ret
+        }
+    }
+
     fn translate_block(&mut self, func: &mut Func, defs: &mut Defs, body: Vec<Expr>) -> Rc<Var> {
         body.into_iter()
             .map(|expr| self.translate_expr(func, defs, expr))
@@ -230,7 +300,7 @@ impl ASTTranslator {
                 on_true,
                 on_false,
                 ..
-            } => todo!(),
+            } => self.translate_if(func, defs, cond, on_true, on_false),
         }
     }
 

@@ -68,6 +68,7 @@ impl Const {
 }
 
 /// Represents label for jump instructions in IR.
+#[derive(Clone)]
 pub enum Label {
     Fn(Control<Func>),
     Block(Control<BasicBlock>),
