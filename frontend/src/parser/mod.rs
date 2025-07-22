@@ -427,7 +427,7 @@ impl Parser {
         })
     }
 
-    fn get_cur_op_prec(&self) -> Option<OpPrecedence> {
+    fn get_cur_op_prec(&self) -> Option<Precedence> {
         bin_op_from_token(&self.lexemes.peek().value).map(|op| op.prec())
     }
 
@@ -441,7 +441,7 @@ impl Parser {
 
             let op = self.get_map(|t| bin_op_from_token(&t), expected!("binary operator"))?;
 
-            let rhs = self.parse_term()?;
+            let rhs = self.parse_term(false)?;
             let rhs = match op.value.assoc() {
                 Associativity::Left => {
                     if self.get_cur_op_prec().is_some_and(|prec| cur_prec < prec) {
