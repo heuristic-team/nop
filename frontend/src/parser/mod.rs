@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Expr, FnDecl, FnParam, OpPrecedence};
+use crate::ast::{Associativity, BinaryOp, Expr, FnDecl, FnParam, Precedence};
 use crate::lexer::{Lexeme, Lexemes, Span, Token, WithSpan};
 use crate::typesystem::Type;
 
@@ -431,9 +431,7 @@ impl Parser {
         bin_op_from_token(&self.lexemes.peek().value).map(|op| op.prec())
     }
 
-    fn parse_full_expr(&mut self, prev_prec: OpPrecedence, mut lhs: Expr) -> Res<Expr> {
-        // TODO: handle operator associativity
-
+    fn parse_full_expr(&mut self, prev_prec: Precedence, mut lhs: Expr) -> Res<Expr> {
         loop {
             let cur_prec = match self.get_cur_op_prec() {
                 None => return Ok(lhs),
@@ -443,11 +441,22 @@ impl Parser {
 
             let op = self.get_map(|t| bin_op_from_token(&t), expected!("binary operator"))?;
 
-            let rhs = self.parse_term(false)?;
-            let rhs = if self.get_cur_op_prec().is_some_and(|prec| cur_prec < prec) {
-                self.parse_full_expr(cur_prec + 1, rhs)?
-            } else {
-                rhs
+            let rhs = self.parse_term()?;
+            let rhs = match op.value.assoc() {
+                Associativity::Left => {
+                    if self.get_cur_op_prec().is_some_and(|prec| cur_prec < prec) {
+                        self.parse_full_expr(cur_prec + 1, rhs)?
+                    } else {
+                        rhs
+                    }
+                }
+                Associativity::Right => {
+                    if self.get_cur_op_prec().is_some_and(|prec| cur_prec <= prec) {
+                        self.parse_full_expr(cur_prec, rhs)?
+                    } else {
+                        rhs
+                    }
+                }
             };
 
             lhs = Expr::Binary {
