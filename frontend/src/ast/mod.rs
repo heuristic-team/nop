@@ -31,7 +31,12 @@ impl FnDecl {
     }
 }
 
-pub type OpPrecedence = u8;
+pub type Precedence = u8;
+
+pub enum Associativity {
+    Left,
+    Right,
+}
 
 // #[derive(Debug, Clone, Copy)]
 // pub enum UnaryOp {
@@ -47,12 +52,19 @@ pub enum BinaryOp {
 }
 
 impl BinaryOp {
-    pub fn prec(&self) -> OpPrecedence {
+    pub fn prec(&self) -> Precedence {
         match self {
             Self::Assign => 1,
             Self::Plus => 4,
             Self::Minus => 4,
             Self::Mul => 5,
+        }
+    }
+
+    pub fn assoc(&self) -> Associativity {
+        match self {
+            BinaryOp::Assign => Associativity::Right,
+            BinaryOp::Plus | BinaryOp::Minus | BinaryOp::Mul => Associativity::Left,
         }
     }
 
