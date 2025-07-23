@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{Pass, Res};
+
 use crate::Diagnostic;
 use crate::TranslationUnit;
 use crate::TypeAliasMap;
