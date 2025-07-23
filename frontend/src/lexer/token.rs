@@ -20,6 +20,7 @@ pub enum Token {
     If,     // `if`
     Then,   // `then`
     Else,   // `else`
+    Struct, // `struct`
     EOL,
     LParen, // `(`
     RParen, // `)`
@@ -55,6 +56,7 @@ impl Token {
             Token::If => "`if`",
             Token::Then => "`then`",
             Token::Else => "`else`",
+            Token::Struct => "`struct`",
             Token::EOL => "end of line",
             Token::LParen => "`(`",
             Token::RParen => "`)`",

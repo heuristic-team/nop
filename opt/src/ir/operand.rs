@@ -16,7 +16,7 @@ pub enum Op {
 
 impl Op {
     /// Creates variable operand with a specified type.
-    pub fn create_var(name: String, tp: Type) -> Self {
+    pub fn create_var(name: String, tp: Rc<Type>) -> Self {
         Self::Variable(Rc::new(Var::new(name, tp)))
     }
 
@@ -33,7 +33,7 @@ impl Op {
     /// Checks whether this instance is of integer type.
     pub fn is_int(&self) -> bool {
         match self {
-            Self::Variable(v) => v.tp == Type::I64, // TODO: do normal check for types
+            Self::Variable(v) => v.tp.is_integer(),
             Self::Const(Const::Int(_)) => true,
             _ => false,
         }
@@ -42,7 +42,7 @@ impl Op {
     /// Checks whether this instance is of boolean type.
     pub fn is_bool(&self) -> bool {
         match self {
-            Self::Variable(v) => v.tp == Type::Bool, // TODO: do normal check for types
+            Self::Variable(v) => *v.tp == Type::Bool, // TODO: do normal check for types
             Self::Const(Const::Bool(_)) => true,
             _ => false,
         }
@@ -90,12 +90,12 @@ impl Label {
 /// probably will have defs and uses later on but for now it is what it is.
 pub struct Var {
     pub name: String,
-    pub tp: Type,
+    pub tp: Rc<Type>,
 }
 
 impl Var {
     /// Creates new IR variable.
-    pub fn new(name: String, tp: Type) -> Self {
+    pub fn new(name: String, tp: Rc<Type>) -> Self {
         Self { name, tp }
     }
 }

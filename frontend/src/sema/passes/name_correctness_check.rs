@@ -5,6 +5,8 @@ use std::collections::HashSet;
 
 use super::{Pass, Res};
 use crate::Diagnostic;
+use crate::TranslationUnit;
+use crate::TypeAliasMap;
 use crate::ast::*;
 use crate::lexer::WithSpan;
 
@@ -77,27 +79,24 @@ fn check_references_in_decl<'a>(
 ) {
     let mut ctx = ctx.clone();
 
-    for FnParam {
-        name: WithSpan { value: name, .. },
-        ..
-    } in decl.params.iter()
-    {
-        ctx.to_mut().insert(&name);
+    for FnParam { name, .. } in decl.params.iter() {
+        // TODO: check that parameters names are unique in the list
+        ctx.to_mut().insert(&name.value);
     }
 
     check_references_in_expr(diags, &mut ctx, &decl.body);
 }
 
 impl Pass for NameCorrectnessCheck {
-    type Input = Vec<FnDecl>;
-    type Output = AST;
+    type Input = (Vec<FnDecl>, TypeAliasMap);
+    type Output = TranslationUnit;
 
-    fn run(&mut self, decls: Self::Input) -> Res<Self::Output> {
-        let mut res: Self::Output = HashMap::new();
+    fn run(&mut self, (decls, typemap): Self::Input) -> Res<Self::Output> {
+        let mut ast: AST = HashMap::new();
         let mut diags = Vec::new();
 
         for decl in decls.into_iter() {
-            let prev = res.get(&decl.name.value);
+            let prev = ast.get(&decl.name.value);
 
             if let Some(prev_decl) = prev {
                 let note =
@@ -105,17 +104,17 @@ impl Pass for NameCorrectnessCheck {
                 let msg = format!("redeclaration of function {}", decl.name.value);
                 diags.push(Diagnostic::new_with_notes(msg, decl.name.span, vec![note]));
             } else {
-                res.insert(decl.name.value.clone(), decl);
+                ast.insert(decl.name.value.clone(), decl);
             }
         }
 
-        let ctx = res.keys().map(|s| s.as_str()).collect::<Names>();
-        for decl in res.values() {
+        let ctx = ast.keys().map(|s| s.as_str()).collect::<Names>();
+        for decl in ast.values() {
             check_references_in_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
         }
 
         if diags.is_empty() {
-            Res::Ok(res)
+            Res::Ok((ast, typemap))
         } else {
             Res::Fatal(diags)
         }

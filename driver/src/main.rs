@@ -21,23 +21,26 @@ fn main() {
 
     let parsed = Parser::new(tokens).parse();
     match parsed {
-        Ok(decls) => {
-            let ast_res = sema::run(decls);
+        Ok((fn_decls, type_decls)) => {
+            for decl in &type_decls {
+                decl.print();
+            }
+            
+            let ast_res = sema::run(fn_decls, type_decls);
 
             if let Some(diags) = ast_res.get_diagnostics() {
                 diags.for_each(|d| print_error(&input, d));
             }
 
-            if let Some(ast) = ast_res.extract_value() {
+            if let Some(unit) = ast_res.extract_value() {
                 println!("post-sema AST:");
-                for decl in ast.values() {
+                for decl in unit.0.values() {
                     decl.print();
                 }
 
                 let mut translator = ASTTranslator::new();
-                let program = translator.translate(ast);
+                let program = translator.translate(unit.0);
                 println!("{}", program);
-                // TODO: pass AST to translator
             }
         }
         Err(err) => print_error(&input, &err.into()),

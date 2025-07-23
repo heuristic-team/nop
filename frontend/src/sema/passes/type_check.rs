@@ -1,18 +1,21 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use super::{Pass, Res};
 use crate::Diagnostic;
+use crate::TranslationUnit;
+use crate::TypeAliasMap;
 use crate::ast::*;
 use crate::lexer::{Span, WithSpan};
 use crate::typesystem::Type;
 
-type TypeMap = HashMap<String, Type>;
+type Ctx = HashMap<String, Rc<Type>>;
 
 pub struct TypeCheck {}
 
 /// Deduce and check types in declaration body
-fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &mut FnDecl) {
+fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, decl: &mut FnDecl) {
     let mut typemap = typemap.clone();
 
     for FnParam { name, tp, .. } in &decl.params {
@@ -48,11 +51,13 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, decl: &
 
 /// Recursively go through expression tree, deduce types where needed and possible,
 /// and check that all types are valid and compatible
-fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &mut Expr) {
+fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, expr: &mut Expr) {
     match expr {
         Expr::Num { tp, value } => {
-            if let Type::Undef = tp {
-                *tp = deduce_integer_type(value.value);
+            // TODO: check that `tp` is valid and can contain the literal
+
+            if let Type::Undef = tp.as_ref() {
+                *tp = Rc::new(deduce_integer_type(value.value));
             }
         }
         Expr::Bool { .. } => {}
@@ -85,30 +90,25 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
             }
 
             if *in_stmt_pos {
-                *tp = Type::Unit;
+                *tp = Rc::new(Type::Unit);
             } else {
                 if let Some(on_false) = on_false {
-                    *tp = merge_types(on_true.tp(), on_false.tp())
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            let then_note = WithSpan::new(
-                                format!("`then` is {}", on_true.tp()),
-                                on_true.span(),
-                            );
-                            let else_note = WithSpan::new(
-                                format!("`else` is {}", on_false.tp()),
-                                on_false.span(),
-                            );
-                            diags.push(Diagnostic::new_with_notes(
-                                "branches types mismatch".to_string(),
-                                *kw_span,
-                                vec![then_note, else_note],
-                            ));
+                    *tp = merge_types(on_true.tp_rc(), on_false.tp_rc()).unwrap_or_else(|| {
+                        let then_note =
+                            WithSpan::new(format!("`then` is {}", on_true.tp()), on_true.span());
+                        let else_note =
+                            WithSpan::new(format!("`else` is {}", on_false.tp()), on_false.span());
+                        diags.push(Diagnostic::new_with_notes(
+                            "branches types mismatch".to_string(),
+                            *kw_span,
+                            vec![then_note, else_note],
+                        ));
 
-                            Type::Bottom
-                        })
+                        Rc::new(Type::Bottom)
+                    })
                 } else {
-                    *tp = Type::Bottom;
+                    *tp = Rc::new(Type::Bottom);
+
                     diags.push(Diagnostic::new(
                         "conditional expression is missing the `else` branch".to_string(),
                         expr.span(),
@@ -144,13 +144,13 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
 
             *tp = if let Type::Function { params, rettype } = callee.tp() {
                 check_call_args(diags, *call_span, params, &args);
-                rettype.as_ref().clone()
+                rettype.clone()
             } else {
                 diags.push(Diagnostic::new(
                     "expression is not callable".to_string(),
                     callee.span(),
                 ));
-                Type::Bottom
+                Rc::new(Type::Bottom)
             }
         }
         Expr::Binary { tp, op, lhs, rhs } => {
@@ -171,22 +171,22 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
                 if !match_types(lhs.tp(), rhs.tp()) {
                     report_incompatible_types();
                 }
-                Type::Bool
+                Rc::new(Type::Bool)
             } else {
-                merge_types(lhs.tp(), rhs.tp()).cloned().unwrap_or_else(|| {
+                merge_types(lhs.tp_rc(), rhs.tp_rc()).unwrap_or_else(|| {
                     report_incompatible_types();
-                    Type::Bottom
+                    Rc::new(Type::Bottom)
                 })
             };
         }
         Expr::Declare {
             tp, value, name, ..
         } => {
-            if let Type::Undef = tp.value {
+            if let Type::Undef = *tp.value {
                 process_expr(diags, typemap, value);
-                tp.value = value.tp().clone();
+                tp.value = value.tp_rc().clone();
             } else {
-                propagate_type(value, &tp.value);
+                propagate_type(diags, value, tp.value.clone());
                 process_expr(diags, typemap, value);
 
                 if !match_types(value.tp(), &tp.value) {
@@ -208,7 +208,10 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
             let mut typemap = Cow::Borrowed(typemap.as_ref());
             body.iter_mut()
                 .for_each(|e| process_expr(diags, &mut typemap, e));
-            *tp = body.last().map(|e| e.tp()).cloned().unwrap_or(Type::Unit);
+            *tp = body
+                .last()
+                .map(|e| e.tp_rc())
+                .unwrap_or_else(|| Rc::new(Type::Unit));
         }
         Expr::Ret { value, .. } => {
             if let Some(value) = value {
@@ -218,13 +221,13 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<TypeMap>, expr: &
     }
 }
 
-fn propagate_type(expr: &mut Expr, propagated: &Type) {
+fn propagate_type(diags: &mut Vec<Diagnostic>, expr: &mut Expr, propagated: Rc<Type>) {
     match expr {
         Expr::Declare { .. } | Expr::Ret { .. } => {} // always unit and bottom respectively
         Expr::Block { tp, body, .. } => {
             *tp = propagated.clone();
             if let Some(e) = body.last_mut() {
-                propagate_type(e, propagated);
+                propagate_type(diags, e, propagated);
             }
         }
         Expr::If { on_false: None, .. } => {}
@@ -235,11 +238,22 @@ fn propagate_type(expr: &mut Expr, propagated: &Type) {
             ..
         } => {
             *tp = propagated.clone();
-            propagate_type(on_true, propagated);
-            propagate_type(on_false, propagated);
+            propagate_type(diags, on_true, propagated.clone());
+            propagate_type(diags, on_false, propagated);
         }
-        Expr::Num { tp, .. } => {
-            *tp = propagated.clone();
+        Expr::Num {
+            tp,
+            value: WithSpan { span, .. },
+        } => {
+            *tp = if propagated.is_integer() {
+                propagated.clone()
+            } else {
+                diags.push(Diagnostic::new(
+                    format!("integer literal cannot have type {}", *propagated),
+                    *span,
+                ));
+                Rc::new(Type::Bottom)
+            }
         }
         Expr::While { .. } => {} // will change in the future, see issue #18
         Expr::Ref { .. } | Expr::Call { .. } => {} // these types should be set in `process_expr` by lookup
@@ -247,20 +261,25 @@ fn propagate_type(expr: &mut Expr, propagated: &Type) {
         Expr::Bool { .. } => {}                    // always bool
         Expr::Binary { tp, lhs, rhs, .. } => {
             *tp = propagated.clone();
-            propagate_type(lhs, propagated);
-            propagate_type(rhs, propagated);
+            propagate_type(diags, lhs, propagated.clone());
+            propagate_type(diags, rhs, propagated);
         }
     }
 }
 
 fn match_types(lhs: &Type, rhs: &Type) -> bool {
-    merge_types(lhs, rhs).is_some()
+    match (lhs, rhs) {
+        (Type::Bottom, _) | (_, Type::Bottom) => true,
+        (a, b) if a == b => true,
+        _ => false,
+    }
 }
 
-fn merge_types<'a>(lhs: &'a Type, rhs: &'a Type) -> Option<&'a Type> {
-    match (lhs, rhs) {
-        (Type::Bottom, other) | (other, Type::Bottom) => Some(other),
-        (a, b) if a == b => Some(a),
+fn merge_types<'a>(lhs: Rc<Type>, rhs: Rc<Type>) -> Option<Rc<Type>> {
+    match (lhs.as_ref(), rhs.as_ref()) {
+        (Type::Bottom, _) => Some(rhs),
+        (_, Type::Bottom) => Some(lhs),
+        (a, b) if a == b => Some(lhs),
         _ => None,
     }
 }
@@ -269,7 +288,12 @@ fn deduce_integer_type(value: u64) -> Type {
     Type::I64 // TODO: unhardcode this
 }
 
-fn check_call_args(diags: &mut Vec<Diagnostic>, call_span: Span, params: &[Type], args: &[Expr]) {
+fn check_call_args<T: AsRef<Type>>(
+    diags: &mut Vec<Diagnostic>,
+    call_span: Span,
+    params: &[T],
+    args: &[Expr],
+) {
     if args.len() != params.len() {
         diags.push(Diagnostic::new(
             format!(
@@ -289,12 +313,12 @@ fn check_call_args(diags: &mut Vec<Diagnostic>, call_span: Span, params: &[Type]
     params
         .iter()
         .zip(args)
-        .filter(|(param, arg)| !match_types(arg.tp(), *param))
+        .filter(|(param, arg)| !match_types(arg.tp(), param.as_ref()))
         .map(|(param, arg)| {
             Diagnostic::new(
                 format!(
                     "argument type mismatch: expected {}, but got {}",
-                    param,
+                    param.as_ref(),
                     arg.tp()
                 ),
                 arg.span(),
@@ -343,28 +367,26 @@ fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
     }
 }
 
-fn typemap_from_ast(ast: &AST) -> TypeMap {
-    let mut res = HashMap::new();
-    for (name, decl) in ast {
-        res.insert(name.clone(), decl.formal_type());
-    }
-    res
+fn ctx_from_ast(ast: &AST) -> Ctx {
+    ast.iter()
+        .map(|decl| (decl.0.clone(), decl.1.tp.value.clone()))
+        .collect()
 }
 
 impl Pass for TypeCheck {
-    type Input = AST;
-    type Output = AST;
+    type Input = TranslationUnit;
+    type Output = TranslationUnit;
 
-    fn run(&mut self, mut ast: Self::Input) -> Res<Self::Output> {
+    fn run(&mut self, (mut ast, typemap): Self::Input) -> Res<Self::Output> {
         let mut diags = vec![];
 
-        let typemap = typemap_from_ast(&ast);
+        let ctx = ctx_from_ast(&ast);
         for decl in ast.values_mut() {
-            process_decl(&mut diags, &mut Cow::Borrowed(&typemap), decl);
+            process_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
         }
 
         if diags.is_empty() {
-            Res::Ok(ast)
+            Res::Ok((ast, typemap))
         } else {
             Res::Fatal(diags)
         }
