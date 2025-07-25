@@ -22,6 +22,7 @@ const KEYWORDS: &[(Token, &str)] = &[
     (Token::If, "if"),
     (Token::Then, "then"),
     (Token::Else, "else"),
+    (Token::Struct, "struct"),
 ];
 
 const SYMBOLS: &[(char, Token)] = &[

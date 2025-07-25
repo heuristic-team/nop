@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use super::{Pass, Res};
 use crate::Diagnostic;
+use crate::TranslationUnit;
 use crate::ast::*;
 use crate::lexer::WithSpan;
 
@@ -112,16 +113,16 @@ fn check_decl(diags: &mut Vec<Diagnostic>, decl: &FnDecl) {
 }
 
 impl Pass for AssignmentCorrectnessCheck {
-    type Input = AST;
-    type Output = AST;
+    type Input = TranslationUnit;
+    type Output = TranslationUnit;
 
-    fn run(&mut self, ast: Self::Input) -> Res<Self::Output> {
+    fn run(&mut self, (ast, typemap): Self::Input) -> Res<Self::Output> {
         let mut diags = vec![];
 
         ast.values().for_each(|decl| check_decl(&mut diags, decl));
 
         if diags.is_empty() {
-            Res::Ok(ast)
+            Res::Ok((ast, typemap))
         } else {
             Res::Fatal(diags)
         }

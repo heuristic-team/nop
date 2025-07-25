@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 use crate::ast::{Associativity, BinaryOp, Expr, FnDecl, FnParam, Precedence};
 use crate::lexer::{Lexeme, Lexemes, Span, Token, WithSpan};
-use crate::typesystem::Type;
+use crate::typesystem::{Field, Type, TypeDecl};
 
 mod res;
 pub use res::ParseError;
@@ -43,19 +45,29 @@ impl Parser {
         Self { lexemes }
     }
 
-    pub fn parse(&mut self) -> Res<Vec<FnDecl>> {
-        let mut decls = Vec::new();
+    pub fn parse(&mut self) -> Res<(Vec<FnDecl>, Vec<TypeDecl>)> {
+        let mut fn_decls = Vec::new();
+        let mut type_decls = Vec::new();
 
         self.eat_while(token!(Token::EOL));
         while !self.lexemes.is_eof() {
-            match self.parse_fn_decl() {
-                Ok(decl) => decls.push(decl),
-                Err(err) => return Err(err),
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::Fn => fn_decls.push(self.parse_fn_decl()?),
+                Token::Type => type_decls.push(self.parse_type_decl()?),
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::Fn, Token::Type),
+                        t.to_string(),
+                        span,
+                    ));
+                }
             }
+
             self.eat_while(token!(Token::EOL));
         }
 
-        Ok(decls)
+        Ok((fn_decls, type_decls))
     }
 
     fn eat_if(&mut self, matcher: impl FnOnce(&Token) -> bool) -> bool {
@@ -108,16 +120,78 @@ impl Parser {
         self.get_map(token!(Token::Id(id) => id), expected!("identifier"))
     }
 
-    fn parse_type(&mut self) -> Res<WithSpan<Type>> {
-        let WithSpan { value: id, span } =
-            self.get_map(token!(Token::Id(id) => id), expected!("type"))?;
+    fn parse_struct_type(&mut self) -> Res<Type> {
+        self.get(token!(Token::Struct), expected!(Token::Struct))?;
+        self.eat_while(token!(Token::EOL));
+        self.get(token!(Token::LBrace), expected!(Token::LBrace))?;
 
-        let tp = match Type::primitive_from_str(&id) {
-            Some(tp) => Ok(tp),
-            None => Err(ParseError::new(expected!("type"), id, span)),
-        }?;
+        let mut fields = vec![];
+
+        while Token::RBrace != self.lexemes.peek().value {
+            self.eat_while(token!(Token::EOL));
+
+            let name = self.parse_id()?.value;
+            self.eat_while(token!(Token::EOL));
+
+            self.get(token!(Token::Colon), expected!(Token::Colon))?;
+            self.eat_while(token!(Token::EOL));
+
+            let tp = self.parse_type()?;
+            self.eat_while(token!(Token::EOL));
+
+            fields.push(Field {
+                name,
+                tp: tp.map(Rc::new),
+            });
+
+            let WithSpan { value: token, span } = self.lexemes.peek();
+            match token {
+                Token::Comma => {
+                    self.lexemes.next();
+                }
+                Token::RBrace => {}
+                t => {
+                    return Err(ParseError::new(
+                        expected!(Token::Comma, Token::RBrace),
+                        t.to_string(),
+                        span,
+                    ));
+                }
+            }
+        }
+
+        self.get(token!(Token::RBrace), expected!(Token::RBrace))?;
+        Ok(Type::Struct(fields))
+    }
+
+    fn parse_type(&mut self) -> Res<WithSpan<Type>> {
+        let WithSpan { value: token, span } = self.lexemes.peek();
+
+        let tp = match token {
+            Token::Id(id) => {
+                self.lexemes.next();
+                Type::primitive_from_str(&id).unwrap_or(Type::Alias(id))
+            }
+            Token::Struct => self.parse_struct_type()?,
+            t => return Err(ParseError::new(expected!("type"), t.to_string(), span)),
+        };
 
         Ok(WithSpan::new(tp, span))
+    }
+
+    fn parse_type_decl(&mut self) -> Res<TypeDecl> {
+        self.get(token!(Token::Type), expected!(Token::Type))?;
+
+        let name = self.parse_id()?;
+
+        self.get(token!(Token::Assign), expected!(Token::Assign))?;
+
+        let value = self.parse_type()?;
+
+        Ok(TypeDecl {
+            name,
+            value: value.map(Rc::new),
+        })
     }
 
     fn parse_fn_decl(&mut self) -> Res<FnDecl> {
@@ -142,8 +216,8 @@ impl Parser {
         let body = self.parse_top_level_expr()?;
 
         let decl = FnDecl {
-            name: name,
-            tp: tp,
+            name,
+            tp: tp.map(Rc::new),
             params,
             body,
         };
@@ -171,7 +245,11 @@ impl Parser {
             let tp = self.parse_type()?;
             self.eat_while(token!(Token::EOL));
 
-            res.push(FnParam { is_mut, name, tp });
+            res.push(FnParam {
+                is_mut,
+                name,
+                tp: tp.map(Rc::new),
+            });
 
             let WithSpan { value: token, span } = self.lexemes.peek();
             match token {
@@ -249,7 +327,7 @@ impl Parser {
         Ok(Expr::Declare {
             is_mut,
             name: name,
-            tp: tp,
+            tp: tp.map(Rc::new),
             value: Box::new(value),
         })
     }
@@ -282,14 +360,14 @@ impl Parser {
             Token::Id(name) => {
                 self.lexemes.next();
                 Ok(Expr::Ref {
-                    tp: Type::Undef,
+                    tp: Rc::new(Type::Undef),
                     name: WithSpan::new(name, span),
                 })
             }
             Token::Num(value) => {
                 self.lexemes.next();
                 Ok(Expr::Num {
-                    tp: Type::I64, // TODO: unhardcode this
+                    tp: Rc::new(Type::I64), // TODO: unhardcode this
                     value: WithSpan::new(value, span),
                 })
             }
@@ -338,7 +416,7 @@ impl Parser {
         let span = Span::new(callee.span().start, rparen_span.end);
 
         Ok(Expr::Call {
-            tp: Type::Undef,
+            tp: Rc::new(Type::Undef),
             callee: Box::new(callee),
             args,
             span,
@@ -379,7 +457,7 @@ impl Parser {
 
         Ok(Expr::Block {
             body,
-            tp: Type::Undef,
+            tp: Rc::new(Type::Undef),
             span,
         })
     }
@@ -418,7 +496,7 @@ impl Parser {
         };
 
         Ok(Expr::If {
-            tp: Type::Undef,
+            tp: Rc::new(Type::Undef),
             cond: Box::new(cond),
             on_true: Box::new(on_true),
             on_false: on_false.map(|e| Box::new(e)),
@@ -461,7 +539,7 @@ impl Parser {
 
             lhs = Expr::Binary {
                 op,
-                tp: Type::Undef,
+                tp: Rc::new(Type::Undef),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             };
@@ -504,8 +582,8 @@ mod tests {
         assert!(res.is_ok());
         let params = res.unwrap();
         assert_eq!(params.len(), 1);
-        assert_eq!(params[0].name.value, "foo".to_string());
-        assert_eq!(params[0].tp.value, Type::Bool);
+        assert_eq!(params[0].name.value, "foo");
+        assert_eq!(*params[0].tp.value, Type::Bool);
         assert!(!params[0].is_mut);
         assert_eq!(parser.lexemes.next().value, Token::Num(37));
 
@@ -519,11 +597,11 @@ mod tests {
             params
                 .into_iter()
                 .map(|p| (p.is_mut, p.name.value, p.tp.value))
-                .collect::<Vec<(bool, String, Type)>>(),
+                .collect::<Vec<(bool, String, Rc<Type>)>>(),
             vec![
-                (false, "foo".to_string(), Type::Bool),
-                (true, "bar".to_string(), Type::I64),
-                (false, "c".to_string(), Type::I64)
+                (false, "foo".to_string(), Rc::new(Type::Bool)),
+                (true, "bar".to_string(), Rc::new(Type::I64)),
+                (false, "c".to_string(), Rc::new(Type::I64))
             ]
         );
         assert_eq!(parser.lexemes.next().value, Token::Fn);
@@ -544,8 +622,8 @@ mod tests {
                 assert!(matches!(
                     *callee,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 42, .. }
+                        value: WithSpan { value: 42, .. },
+                        ..
                     }
                 ));
                 assert!(args.is_empty());
@@ -564,8 +642,8 @@ mod tests {
                 assert!(matches!(
                     *callee,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 42, .. }
+                        value: WithSpan { value: 42, .. },
+                        ..
                     }
                 ));
 
@@ -573,15 +651,15 @@ mod tests {
                 assert!(matches!(
                     args[0],
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 4, .. }
+                        value: WithSpan { value: 4, .. },
+                        ..
                     }
                 ));
                 assert!(matches!(
                     args[1],
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 5, .. }
+                        value: WithSpan { value: 5, .. },
+                        ..
                     }
                 ));
             }
@@ -598,8 +676,8 @@ mod tests {
         assert!(matches!(
             expr,
             Expr::Num {
-                tp: Type::I64,
-                value: WithSpan { value: 4, .. }
+                value: WithSpan { value: 4, .. },
+                ..
             }
         ));
 
@@ -609,10 +687,7 @@ mod tests {
         let expr = res.unwrap();
         assert!(
             match &expr {
-                Expr::Ref {
-                    tp: Type::Undef,
-                    name,
-                } => name.value.as_str() == "foo",
+                Expr::Ref { name, .. } => name.value.as_str() == "foo",
                 _ => false,
             },
             "got {:?} instead of ref",
@@ -635,17 +710,17 @@ mod tests {
                     }
                 ));
                 assert!(matches!(
-                    lhs.as_ref(),
+                    *lhs,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 4, .. }
+                        value: WithSpan { value: 4, .. },
+                        ..
                     }
                 ));
                 assert!(matches!(
-                    rhs.as_ref(),
+                    *rhs,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 5, .. }
+                        value: WithSpan { value: 5, .. },
+                        ..
                     }
                 ));
             }
@@ -671,14 +746,14 @@ mod tests {
                     }
                 ));
                 assert!(matches!(
-                    lhs.as_ref(),
+                    *lhs,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 4, .. }
+                        value: WithSpan { value: 4, .. },
+                        ..
                     }
                 ));
-                assert!(matches!(rhs.as_ref(), Expr::Binary { .. }));
-                match rhs.as_ref() {
+                assert!(matches!(*rhs, Expr::Binary { .. }));
+                match *rhs {
                     Expr::Binary { op, lhs, rhs, .. } => {
                         assert!(matches!(
                             op,
@@ -690,15 +765,15 @@ mod tests {
                         assert!(matches!(
                             lhs.as_ref(),
                             Expr::Num {
-                                tp: Type::I64,
-                                value: WithSpan { value: 5, .. }
+                                value: WithSpan { value: 5, .. },
+                                ..
                             }
                         ));
                         assert!(matches!(
                             rhs.as_ref(),
                             Expr::Num {
-                                tp: Type::I64,
-                                value: WithSpan { value: 6, .. }
+                                value: WithSpan { value: 6, .. },
+                                ..
                             }
                         ));
                     }
@@ -738,12 +813,12 @@ mod tests {
             } => {
                 assert!(is_mut);
                 assert_eq!(name.value.as_str(), "x");
-                assert_eq!(tp.value, Type::I64);
+                assert_eq!(*tp.value, Type::I64);
                 assert!(matches!(
-                    value.as_ref(),
+                    **value,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 4, .. }
+                        value: WithSpan { value: 4, .. },
+                        ..
                     }
                 ));
             }
@@ -760,12 +835,12 @@ mod tests {
             } => {
                 assert!(!is_mut);
                 assert_eq!(name.value.as_str(), "y");
-                assert_eq!(tp.value, Type::Undef);
+                assert_eq!(*tp.value, Type::Undef);
                 assert!(matches!(
-                    value.as_ref(),
+                    **value,
                     Expr::Num {
-                        tp: Type::I64,
-                        value: WithSpan { value: 2, .. }
+                        value: WithSpan { value: 2, .. },
+                        ..
                     }
                 ));
             }
@@ -775,8 +850,8 @@ mod tests {
         assert!(matches!(
             block[2],
             Expr::Num {
-                tp: Type::I64,
-                value: WithSpan { value: 42, .. }
+                value: WithSpan { value: 42, .. },
+                ..
             }
         ));
     }
