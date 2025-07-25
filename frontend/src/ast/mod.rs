@@ -140,12 +140,12 @@ pub enum Expr {
 impl Expr {
     pub fn tp(&self) -> &Type {
         match self {
-            Expr::Num { tp, .. } => tp,
-            Expr::Ref { tp, .. }
+            Expr::Num { tp, .. }
+            | Expr::Ref { tp, .. }
             | Expr::Call { tp, .. }
             | Expr::Binary { tp, .. }
             | Expr::Block { tp, .. }
-            | Expr::If { tp, .. } => tp.as_ref(),
+            | Expr::If { tp, .. } => tp,
             Expr::Bool { .. } => &Type::Bool,
             Expr::Declare { .. } => &Type::Unit,
             Expr::Ret { .. } => &Type::Bottom,

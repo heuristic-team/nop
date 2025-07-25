@@ -22,17 +22,13 @@ fn main() {
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok((fn_decls, type_decls)) => {
-            for decl in &type_decls {
-                decl.print();
-            }
-            
-            let ast_res = sema::run(fn_decls, type_decls);
+            let sema_res = sema::run(fn_decls, type_decls);
 
-            if let Some(diags) = ast_res.get_diagnostics() {
+            if let Some(diags) = sema_res.get_diagnostics() {
                 diags.for_each(|d| print_error(&input, d));
             }
 
-            if let Some(unit) = ast_res.extract_value() {
+            if let Some(unit) = sema_res.extract_value() {
                 println!("post-sema AST:");
                 for decl in unit.0.values() {
                     decl.print();

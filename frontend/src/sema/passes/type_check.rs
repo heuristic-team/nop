@@ -2,7 +2,9 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use super::util::for_each_expr;
 use super::{Pass, Res};
+
 use crate::Diagnostic;
 use crate::TranslationUnit;
 use crate::TypeAliasMap;
@@ -28,7 +30,7 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, decl: &mut 
 
     // check that all `ret` expressions in function body return values of expected type
     for_each_expr(
-        &mut |e| match e {
+        &mut |e: &Expr| match e {
             Expr::Ret { value, span } => {
                 let tp = value.as_ref().map(|e| e.tp()).unwrap_or(&Type::Unit);
                 if !match_types(tp, &decl.tp.value) {
@@ -327,49 +329,9 @@ fn check_call_args<T: AsRef<Type>>(
         .for_each(|diag| diags.push(diag));
 }
 
-fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
-    f(root);
-    match root {
-        Expr::Declare { value, .. } => for_each_expr(f, value),
-        Expr::Ret { value, .. } => {
-            if let Some(value) = value {
-                for_each_expr(f, value);
-            }
-        }
-        Expr::While { cond, body, .. } => {
-            for_each_expr(f, cond);
-            for_each_expr(f, body);
-        }
-        Expr::If {
-            cond,
-            on_true,
-            on_false,
-            ..
-        } => {
-            for_each_expr(f, cond);
-            for_each_expr(f, on_true);
-            if let Some(on_false) = on_false {
-                for_each_expr(f, on_false);
-            }
-        }
-        Expr::Block { body, .. } => {
-            body.iter().for_each(|e| for_each_expr(f, e));
-        }
-        Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
-        Expr::Call { callee, args, .. } => {
-            for_each_expr(f, callee);
-            args.iter().for_each(|e| for_each_expr(f, e));
-        }
-        Expr::Binary { lhs, rhs, .. } => {
-            for_each_expr(f, lhs);
-            for_each_expr(f, rhs);
-        }
-    }
-}
-
 fn ctx_from_ast(ast: &AST) -> Ctx {
     ast.iter()
-        .map(|decl| (decl.0.clone(), decl.1.tp.value.clone()))
+        .map(|decl| (decl.0.clone(), Rc::new(decl.1.formal_type())))
         .collect()
 }
 
