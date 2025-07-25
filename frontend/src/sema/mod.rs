@@ -1,9 +1,10 @@
 mod pass;
-
 use pass::Pass;
 
 mod passes;
 use passes::*;
+
+mod util;
 
 mod res;
 pub use res::Res;

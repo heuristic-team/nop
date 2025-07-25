@@ -22,10 +22,6 @@ fn main() {
     let parsed = Parser::new(tokens).parse();
     match parsed {
         Ok((fn_decls, type_decls)) => {
-            for decl in &type_decls {
-                decl.print();
-            }
-
             let sema_res = sema::run(fn_decls, type_decls);
 
             if let Some(diags) = sema_res.get_diagnostics() {

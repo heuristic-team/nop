@@ -7,6 +7,7 @@ use crate::TypeAliasMap;
 use crate::ast::*;
 use crate::lexer::Span;
 use crate::lexer::WithSpan;
+use crate::sema::util::for_each_expr;
 use crate::typesystem::Type;
 use crate::typesystem::TypeDecl;
 
@@ -41,43 +42,18 @@ fn check_typename_usage_in_expr(
     expr: &Expr,
 ) {
     match expr {
-        Expr::Declare { tp, value, .. } => {
+        Expr::Declare { tp, .. } => {
             check_tp(diags, &tp.value, type_alias_map, tp.span);
-            check_typename_usage_in_expr(diags, type_alias_map, value);
         }
-        Expr::Ret {
-            value: Some(value), ..
-        } => check_typename_usage_in_expr(diags, type_alias_map, value),
-        Expr::Block { body, .. } => body
-            .iter()
-            .for_each(|e| check_typename_usage_in_expr(diags, type_alias_map, e)),
-        Expr::While { cond, body, .. } => {
-            check_typename_usage_in_expr(diags, type_alias_map, cond);
-            check_typename_usage_in_expr(diags, type_alias_map, body);
-        }
-        Expr::If {
-            cond,
-            on_true,
-            on_false,
-            ..
-        } => {
-            check_typename_usage_in_expr(diags, type_alias_map, cond);
-            check_typename_usage_in_expr(diags, type_alias_map, on_true);
-            if let Some(on_false) = on_false {
-                check_typename_usage_in_expr(diags, type_alias_map, on_false);
-            }
-        }
-        Expr::Ret { value: None, .. } | Expr::Num { .. } | Expr::Bool { .. } | Expr::Ref { .. } => {
-        }
-        Expr::Call { callee, args, .. } => {
-            check_typename_usage_in_expr(diags, type_alias_map, callee);
-            args.iter()
-                .for_each(|e| check_typename_usage_in_expr(diags, type_alias_map, e));
-        }
-        Expr::Binary { lhs, rhs, .. } => {
-            check_typename_usage_in_expr(diags, type_alias_map, lhs);
-            check_typename_usage_in_expr(diags, type_alias_map, rhs);
-        }
+        Expr::Block { .. }
+        | Expr::While { .. }
+        | Expr::If { .. }
+        | Expr::Ret { .. }
+        | Expr::Num { .. }
+        | Expr::Bool { .. }
+        | Expr::Ref { .. }
+        | Expr::Call { .. }
+        | Expr::Binary { .. } => {}
     }
 }
 
@@ -91,7 +67,10 @@ fn check_typename_usage_in_decl(
         .map(|p| &p.tp)
         .for_each(|WithSpan { value: tp, span }| check_tp(diags, &tp, type_alias_map, *span));
 
-    check_typename_usage_in_expr(diags, type_alias_map, &decl.body);
+    for_each_expr(
+        &mut |e: &Expr| check_typename_usage_in_expr(diags, type_alias_map, e),
+        &decl.body,
+    );
 }
 
 impl Pass for TypeNameCorrectnessCheck {
