@@ -127,8 +127,8 @@ impl Display for Var {
 impl Display for Label {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Fn(func) => write!(fmt, "fn {}", func.name),
-            Self::Block(block) => write!(fmt, "label {}", block.name),
+            Self::Fn(func) => write!(fmt, "fn {}", func.borrow().name),
+            Self::Block(block) => write!(fmt, "label {}", block.borrow().name),
         }
     }
 }
