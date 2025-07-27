@@ -1,22 +1,22 @@
 mod alloca;
 
-static mut ALLOCA: Option<alloca::HAllocator<T, U, W>> = None;
+// static mut ALLOCA: Option<alloca::HAllocator<T, U>> = None;
 
-pub extern "C" fn init(main: fn()) {
-  unsafe {
-    ALLOCA = Some(alloca::ArenaAllocator3::new(8 << 40));
-  }
-  main();
-}
-
-pub extern "C" fn alloc(t: &dyn alloca::Object) -> alloca::ptr {
-  unsafe {
-    match ALLOCA.as_mut() {
-      None => { panic!("ALLOCA is None")}
-      Some(mut alloca) => { alloca.alloc(t)}
-    }
-  }
-}
+// pub extern "C" fn init(main: fn()) {
+//   unsafe {
+//     ALLOCA = Some(alloca::ArenaAllocator3::new(8 << 40));
+//   }
+//   main();
+// }
+//
+// pub extern "C" fn alloc(t: &dyn alloca::Object) -> alloca::ptr {
+//   unsafe {
+//     match ALLOCA.as_mut() {
+//       None => { panic!("ALLOCA is None")}
+//       Some(mut alloca) => { alloca.alloc(t)}
+//     }
+//   }
+// }
 
 type reg = usize;
 
