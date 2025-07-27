@@ -1,16 +1,18 @@
+use std::rc::Rc;
+
 use super::{Pass, Res};
 use crate::ast::*;
-use crate::typesystem::Type;
+use crate::typesystem::{Type, TypeDecl};
 
 pub struct HandleImplicitRets {}
 
 impl Pass for HandleImplicitRets {
-    type Input = Vec<FnDecl>;
-    type Output = Vec<FnDecl>;
+    type Input = (Vec<FnDecl>, Vec<TypeDecl>);
+    type Output = (Vec<FnDecl>, Vec<TypeDecl>);
 
-    fn run(&mut self, mut decls: Self::Input) -> Res<Self::Output> {
-        decls.iter_mut().for_each(process_decl);
-        Res::Ok(decls)
+    fn run(&mut self, (mut fn_decls, type_decls): Self::Input) -> Res<Self::Output> {
+        fn_decls.iter_mut().for_each(process_decl);
+        Res::Ok((fn_decls, type_decls))
     }
 }
 
@@ -23,9 +25,9 @@ fn process_decl(decl: &mut FnDecl) {
     }
 
     let span = last_expr.span();
-    *last_expr = match &decl.tp.value {
+    *last_expr = match *decl.tp.value {
         Type::Unit => Expr::Block {
-            tp: Type::Unit,
+            tp: Rc::new(Type::Unit),
             span: last_expr.span(),
             body: vec![
                 last_expr.clone(), // TODO: remove this clone :( pt.1

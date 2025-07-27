@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::lexer::{Span, WithSpan};
 use crate::typesystem::*;
@@ -12,13 +13,13 @@ pub type AST = HashMap<String, FnDecl>;
 pub struct FnParam {
     pub is_mut: bool,
     pub name: WithSpan<String>,
-    pub tp: WithSpan<Type>,
+    pub tp: WithSpan<Rc<Type>>,
 }
 
 #[derive(Debug)]
 pub struct FnDecl {
     pub name: WithSpan<String>,
-    pub tp: WithSpan<Type>,
+    pub tp: WithSpan<Rc<Type>>,
     pub params: Vec<FnParam>,
     pub body: Expr,
 }
@@ -26,7 +27,7 @@ pub struct FnDecl {
 impl FnDecl {
     pub fn formal_type(&self) -> Type {
         let params = self.params.iter().map(|p| &p.tp.value).cloned().collect();
-        let rettype = Box::new(self.tp.value.clone());
+        let rettype = self.tp.value.clone();
         Type::Function { params, rettype }
     }
 }
@@ -80,7 +81,7 @@ pub enum Expr {
     Declare {
         is_mut: bool,
         name: WithSpan<String>,
-        tp: WithSpan<Type>,
+        tp: WithSpan<Rc<Type>>,
         value: Box<Expr>,
     },
     Ret {
@@ -88,18 +89,18 @@ pub enum Expr {
         span: Span,
     },
     Block {
-        tp: Type,
+        tp: Rc<Type>,
         body: Vec<Expr>,
         span: Span,
     },
     While {
-        // tp: Type, // TODO, see issue #18
+        // tp: Rc<Type>, // TODO, see issue #18
         cond: Box<Expr>,
         body: Box<Expr>,
         span: Span,
     },
     If {
-        tp: Type,
+        tp: Rc<Type>,
         cond: Box<Expr>,
         on_true: Box<Expr>,
         on_false: Option<Box<Expr>>,
@@ -107,7 +108,7 @@ pub enum Expr {
         in_stmt_pos: bool,
     },
     Num {
-        tp: Type,
+        tp: Rc<Type>,
         value: WithSpan<u64>,
     },
     Bool {
@@ -115,11 +116,11 @@ pub enum Expr {
         span: Span,
     },
     Ref {
-        tp: Type,
+        tp: Rc<Type>,
         name: WithSpan<String>,
     },
     Call {
-        tp: Type,
+        tp: Rc<Type>,
         callee: Box<Expr>,
         args: Vec<Expr>,
         span: Span,
@@ -129,7 +130,7 @@ pub enum Expr {
     //     operand: Box<Expr>,
     // },
     Binary {
-        tp: Type,
+        tp: Rc<Type>,
         op: WithSpan<BinaryOp>,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
@@ -149,6 +150,21 @@ impl Expr {
             Expr::Declare { .. } => &Type::Unit,
             Expr::Ret { .. } => &Type::Bottom,
             Expr::While { .. } => &Type::Unit, // to change, see issue #18
+        }
+    }
+
+    pub fn tp_rc(&self) -> Rc<Type> {
+        match self {
+            Expr::Num { tp, .. }
+            | Expr::Ref { tp, .. }
+            | Expr::Call { tp, .. }
+            | Expr::Binary { tp, .. }
+            | Expr::Block { tp, .. }
+            | Expr::If { tp, .. } => tp.clone(),
+            Expr::Bool { .. } => Rc::new(Type::Bool),
+            Expr::Declare { .. } => Rc::new(Type::Unit),
+            Expr::Ret { .. } => Rc::new(Type::Bottom),
+            Expr::While { .. } => Rc::new(Type::Unit), // to change, see issue #18
         }
     }
 

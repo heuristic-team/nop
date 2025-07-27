@@ -42,11 +42,11 @@ pub struct ASTTranslator {
 }
 
 impl ASTTranslator {
-    fn get_temp(&mut self, tp: Type) -> Rc<Var> {
+    fn get_temp(&mut self, tp: Rc<Type>) -> Rc<Var> {
         Rc::new(Var::new(self.namer.name_temp(), tp))
     }
 
-    fn translate_num(&mut self, func: &mut Func, value: u64, tp: Type) -> Rc<Var> {
+    fn translate_num(&mut self, func: &mut Func, value: u64, tp: Rc<Type>) -> Rc<Var> {
         let dest = self.get_temp(tp);
         let imm = Const::create_int(value);
         let instruction = Instr::create_const(dest.clone(), imm);
@@ -55,7 +55,7 @@ impl ASTTranslator {
     }
 
     fn translate_bool(&mut self, func: &mut Func, value: bool) -> Rc<Var> {
-        let dest = self.get_temp(Type::Bool);
+        let dest = self.get_temp(Rc::new(Type::Bool));
         let imm = Const::create_bool(value);
         let instruction = Instr::create_const(dest.clone(), imm);
         func.add_to_current_block(instruction);
@@ -72,7 +72,7 @@ impl ASTTranslator {
         &mut self,
         func: &mut Func,
         defs: &mut Defs,
-        tp: Type,
+        tp: Rc<Type>,
         callee: Box<Expr>,
         args: Vec<Expr>,
     ) -> Rc<Var> {
@@ -121,7 +121,7 @@ impl ASTTranslator {
 
         match val {
             // TODO: think of how to unkostilit this sheise
-            None => Rc::new(Var::new("".to_string(), Type::Unit)),
+            None => Rc::new(Var::new("".to_string(), Rc::new(Type::Unit))),
             Some(var) => var,
         }
     }

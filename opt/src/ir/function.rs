@@ -15,7 +15,7 @@ use super::{Control, instr::Instr, operand::Var};
 ///
 pub struct Func {
     pub name: String,
-    pub tp: Type,
+    pub tp: Rc<Type>,
     pub blocks: Vec<Control<BasicBlock>>,
     pub params: Vec<Rc<Var>>,
 }
@@ -36,7 +36,7 @@ impl Func {
         self
     }
     /// Creates new function with specified name and type.
-    pub fn empty(name: String, tp: Type) -> Self {
+    pub fn empty(name: String, tp: Rc<Type>) -> Self {
         Self {
             name,
             tp,
@@ -48,7 +48,7 @@ impl Func {
     /// Creates new function with specified name type and blocks.
     pub fn new(
         name: String,
-        tp: Type,
+        tp: Rc<Type>,
         blocks: Vec<Control<BasicBlock>>,
         params: Vec<Rc<Var>>,
     ) -> Self {
