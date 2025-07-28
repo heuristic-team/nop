@@ -25,22 +25,23 @@ impl<T: Object, U: Arena3> HAllocator<T, U> {
     assert!(ptr < self.start + (1 << Self::LOG_CAPACITY_SIZE));
     self.blocks[ptr >> Self::LOG_BLOCK_SIZE]
         .as_mut()
-        .expect(&format!("block_by_ptr: \
-        index: {}\n", ptr >> Self::LOG_BLOCK_SIZE))
+        .expect("block_by_ptr")
   }
   
   fn add_new_needed_block(&mut self, size: usize) -> &mut HedgeBlock<U> {
     for power in (Self::LOG_START_ARENA_SIZE..=Self::LOG_MAX_ARENA_SIZE).step_by(2) {
-      if 1 << power > size {
+      if (1 << power) > size {
         let index = self.count_of_blocks.fetch_add(1, Ordering::Relaxed);
-        self.blocks[index] = Some(HedgeBlock::new
-            (self.start + (index << Self::LOG_BLOCK_SIZE),
-             1 << Self::LOG_BLOCK_SIZE, power, index));
+        
+        let block_start = self.start + (index << Self::LOG_BLOCK_SIZE);
+        
+        let block_size = 1 << Self::LOG_BLOCK_SIZE;
+        
+        self.blocks[index] = Some(HedgeBlock::new(block_start, block_size, power, index));
         
         return self.blocks[index]
             .as_mut()
-            .expect(&format!("arena_by_heaped:\n\
-            num_of_block: {}\n", index));
+            .expect("arena_by_heaped");
       }
     }
     unreachable!();
@@ -49,8 +50,7 @@ impl<T: Object, U: Arena3> HAllocator<T, U> {
   fn arena_by_heaped(&mut self, arena_from_heap: HeapedArena) -> &mut U {
     &mut self.blocks[arena_from_heap.num_of_block]
         .as_mut()
-        .expect(&format!("arena_by_heaped:\n\
-         num_of_block: {}\n", arena_from_heap.num_of_block))
+        .expect("arena_by_heaped")
         .items[arena_from_heap.num_of_arena]
   }
 }
@@ -97,14 +97,12 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   }
   
   
-  fn alloc(&mut self, o: &T) -> ptr {
-    let mut maybe_heaped_arena = self.heap.get_min_more_then(o.size());
-    if maybe_heaped_arena.is_none() {
+  fn alloc(&mut self, object_instance: &T) -> ptr {
+    let mut maybe_heaped_arena = self.heap.get_min_more_then(object_instance.size());
     
-    }
     let heaped_arena = maybe_heaped_arena.unwrap_or_else(|| {
       let heaped_version_of_first_arena = self
-          .add_new_needed_block(o.size())
+          .add_new_needed_block(object_instance.size())
           .slots
           .pop()
           .expect("In new needed_block len(slots)==0\n");
@@ -113,7 +111,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
           heaped_version_of_first_arena
     });
     let ref_arena = self.arena_by_heaped(heaped_arena);
-    ref_arena.add(o.size());
+    ref_arena.add(object_instance.size());
     let ptr = ref_arena.cur();
     
     if ptr == ref_arena.start() {
@@ -125,7 +123,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
         }
         None => {
           let new_heaped_arena = self
-              .add_new_needed_block(o.size())
+              .add_new_needed_block(object_instance.size())
               .slots
               .pop()
               .expect("In new needed_block (when a last arena of the block is not empty) len(slots)==0\n");
@@ -135,7 +133,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
       }
     }
     
-    self.used_memory.fetch_add(o.size(), Ordering::Relaxed);
+    self.used_memory.fetch_add(object_instance.size(), Ordering::Relaxed);
     self.heap.insert(heaped_arena);
     ptr
   }
@@ -144,6 +142,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
     let locked = self.heap.items.lock().expect("lock in white");
     let copy = locked.clone();
     drop(locked);
+    
     for heaped_arena_from_slots in copy.iter() {
       if let arena = self.arena_by_heaped(heaped_arena_from_slots.clone()) && arena.live() {
         arena.clear_mark();
