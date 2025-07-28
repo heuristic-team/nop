@@ -20,16 +20,24 @@ mod alloca;
 //   }
 // }
 
+
+
 type reg = usize;
 
-pub extern "C" fn go(func: fn(reg, reg, reg, reg, reg),
-                     r1: reg, r2: reg, r3: reg, r4: reg, r5: reg) {
-  func(r1, r2, r3, r4, r5);
+pub extern "C" fn go(func: fn(reg, reg, reg, reg, reg, reg),
+                     r1: reg, r2: reg, r3: reg, r4: reg, r5: reg, r6: reg) {
+  func(r1, r2, r3, r4, r5, r6);
 }
+
+pub extern "C" fn switch2native() {}
+
+pub extern "C" fn switch2nop() {}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    
 
     #[test]
     fn it_works() {
