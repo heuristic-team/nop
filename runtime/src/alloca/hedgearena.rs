@@ -1,9 +1,9 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::alloca::ptr;
-use crate::alloca::heap::HeapedArena3;
 use crate::alloca::arena::Arena3;
 
+#[derive(Debug)]
 pub(crate) struct HedgeArena {
   start: ptr,
   cur: ptr,
@@ -19,8 +19,6 @@ pub(crate) struct HedgeArena {
   /// dbg only
   objects: Vec<usize>,
 }
-
-impl HeapedArena3 for HedgeArena {}
 
 impl Arena3 for HedgeArena {
   fn new(start: ptr, size: usize) -> Self {

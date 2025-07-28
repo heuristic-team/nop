@@ -2,7 +2,7 @@ use crate::alloca::{ptr, Object};
 use crate::alloca::arena::Arena3;
 
 pub trait ArenaAllocator3<T: Object, U: Arena3> {
-  const SIZE: usize;
+  const LOG_CAPACITY_SIZE: usize;
   
   const LOG_BLOCK_SIZE: usize;
   
@@ -12,7 +12,7 @@ pub trait ArenaAllocator3<T: Object, U: Arena3> {
   
   fn new(max_size: usize) -> Self;
   
-  unsafe fn alloc(&mut self, o: &T) -> ptr;
+  fn alloc(&mut self, o: &T) -> ptr;
   
   fn mark_white(&mut self);
   

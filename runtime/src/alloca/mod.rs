@@ -1,8 +1,8 @@
 mod allocator;
 mod arena;
-mod heap;
 mod hallocator;
 mod hedgearena;
+mod heapedarena;
 
 pub(crate) type ptr = usize;
 

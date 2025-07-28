@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 mod alloca;
 
 // static mut ALLOCA: Option<alloca::HAllocator<T, U>> = None;
