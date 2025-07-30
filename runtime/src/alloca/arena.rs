@@ -17,7 +17,7 @@ pub trait Arena3 {
   
   fn black_map(&self) ->(ptr, usize);
   
-  fn clear_mark(&mut self);
+  fn clear_mark(& self);
   
   fn live(&self) -> bool;
   
