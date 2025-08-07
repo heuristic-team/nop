@@ -1,7 +1,4 @@
-use std::borrow::Cow;
-
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use super::{Pass, Res};
 use crate::Diagnostic;
@@ -9,18 +6,15 @@ use crate::TranslationUnit;
 use crate::TypeAliasMap;
 use crate::ast::*;
 use crate::lexer::WithSpan;
+use crate::support::ScopedSet;
 
 pub struct NameCorrectnessCheck {}
 
-type Names<'a> = HashSet<&'a str>;
+type Names<'a> = ScopedSet<&'a str>;
 
 /// Recursively go through expression tree and check that all references are valid,
 /// adding a diagnostic otherwise
-fn check_references_in_expr<'a>(
-    diags: &mut Vec<Diagnostic>,
-    ctx: &mut Cow<Names<'a>>,
-    expr: &'a Expr,
-) {
+fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>, expr: &'a Expr) {
     match expr {
         Expr::Ref { name, .. } if !ctx.contains(name.value.as_str()) => {
             diags.push(Diagnostic::new(
@@ -56,12 +50,13 @@ fn check_references_in_expr<'a>(
             check_references_in_expr(diags, ctx, rhs);
         }
         Expr::Declare { name, .. } => {
-            ctx.to_mut().insert(&name.value);
+            ctx.insert(&name.value);
         }
         Expr::Block { body, .. } => {
-            let mut ctx = Cow::Borrowed(ctx.as_ref());
+            ctx.enter_scope();
             body.iter()
-                .for_each(|e| check_references_in_expr(diags, &mut ctx, e));
+                .for_each(|e| check_references_in_expr(diags, ctx, e));
+            ctx.leave_scope();
         }
         Expr::Ret { value, .. } => {
             if let Some(e) = value {
@@ -74,17 +69,17 @@ fn check_references_in_expr<'a>(
 /// Check declaration body for validity of references
 fn check_references_in_decl<'a>(
     diags: &mut Vec<Diagnostic>,
-    ctx: &mut Cow<Names<'a>>,
+    ctx: &mut Names<'a>,
     decl: &'a FnDecl,
 ) {
-    let mut ctx = ctx.clone();
-
+    ctx.enter_scope();
     for FnParam { name, .. } in decl.params.iter() {
         // TODO: check that parameters names are unique in the list
-        ctx.to_mut().insert(&name.value);
+        ctx.insert(&name.value);
     }
 
-    check_references_in_expr(diags, &mut ctx, &decl.body);
+    check_references_in_expr(diags, ctx, &decl.body);
+    ctx.leave_scope();
 }
 
 impl Pass for NameCorrectnessCheck {
@@ -108,9 +103,10 @@ impl Pass for NameCorrectnessCheck {
             }
         }
 
-        let ctx = ast.keys().map(|s| s.as_str()).collect::<Names>();
+        let mut ctx = ScopedSet::new();
+        ctx.add_scope(ast.keys().map(|s| s.as_str()).collect());
         for decl in ast.values() {
-            check_references_in_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
+            check_references_in_decl(&mut diags, &mut ctx, decl);
         }
 
         if diags.is_empty() {

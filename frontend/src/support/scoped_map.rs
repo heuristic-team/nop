@@ -38,6 +38,11 @@ impl<K, V> ScopedMap<K, V> {
         Self { repr: Vec::new() }
     }
 
+    /// Create a new `ScopedMap` with one active scope.
+    pub fn with_scope(scope: HashMap<K, V>) -> Self {
+        Self { repr: vec![scope] }
+    }
+
     /// Enter a new scope. All newly added items will be inserted into it until any scope-changing method is called. All outer scopes are left untouched.
     pub fn enter_scope(&mut self) {
         self.add_scope(HashMap::new())

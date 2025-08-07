@@ -1,15 +1,13 @@
-use std::borrow::Cow;
-use std::collections::HashSet;
-
 use super::{Pass, Res};
 use crate::Diagnostic;
 use crate::TranslationUnit;
 use crate::ast::*;
 use crate::lexer::WithSpan;
+use crate::support::ScopedSet;
 
 pub struct AssignmentCorrectnessCheck {}
 
-type MutableVars<'a> = HashSet<&'a str>;
+type MutableVars<'a> = ScopedSet<&'a str>;
 
 fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
     match expr {
@@ -28,7 +26,7 @@ fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
 /// verify that their destination operand is an expression that is assignable to
 fn find_and_check_assignments<'a, 'b: 'a>(
     diags: &mut Vec<Diagnostic>,
-    ctx: &'a mut Cow<MutableVars<'b>>,
+    ctx: &'a mut MutableVars<'b>,
     expr: &'b Expr,
 ) {
     match expr {
@@ -85,13 +83,14 @@ fn find_and_check_assignments<'a, 'b: 'a>(
         } => {
             find_and_check_assignments(diags, ctx, value);
             if *is_mut {
-                ctx.to_mut().insert(&name.value);
+                ctx.insert(&name.value);
             }
         }
         Expr::Block { body, .. } => {
-            let mut ctx = Cow::Borrowed(ctx.as_ref());
+            ctx.enter_scope();
             body.iter()
-                .for_each(|e| find_and_check_assignments(diags, &mut ctx, e));
+                .for_each(|e| find_and_check_assignments(diags, ctx, e));
+            ctx.leave_scope();
         }
         Expr::Ret { value, .. } => {
             if let Some(e) = value {
@@ -102,14 +101,15 @@ fn find_and_check_assignments<'a, 'b: 'a>(
 }
 
 fn check_decl(diags: &mut Vec<Diagnostic>, decl: &FnDecl) {
-    let ctx = decl
-        .params
-        .iter()
-        .filter(|p| p.is_mut)
-        .map(|p| p.name.value.as_str())
-        .collect::<MutableVars>();
+    let mut ctx = ScopedSet::with_scope(
+        decl.params
+            .iter()
+            .filter(|p| p.is_mut)
+            .map(|p| p.name.value.as_str())
+            .collect(),
+    );
 
-    find_and_check_assignments(diags, &mut Cow::Borrowed(&ctx), &decl.body)
+    find_and_check_assignments(diags, &mut ctx, &decl.body)
 }
 
 impl Pass for AssignmentCorrectnessCheck {

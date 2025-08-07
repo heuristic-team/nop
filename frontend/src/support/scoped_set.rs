@@ -34,9 +34,15 @@ impl<T> ScopedSet<T> {
         Self { repr: Vec::new() }
     }
 
+    /// Create a new `ScopedSet` with one active scope.
+    pub fn with_scope(scope: HashSet<T>) -> Self {
+        Self { repr: vec![scope] }
+    }
+
     /// Enter a new scope. All newly added items will be inserted into it until any scope-changing method is called. All outer scopes are left untouched.
-    pub fn enter_scope(&mut self) {
-        self.add_scope(HashSet::new())
+    pub fn enter_scope(&mut self) -> &mut Self {
+        self.add_scope(HashSet::new());
+        self
     }
 
     /// Leave current scope. All items present in it are discarded, but all the items from outer scopes, including the items identical to the deleted ones, are left untouched.
@@ -47,8 +53,9 @@ impl<T> ScopedSet<T> {
     }
 
     /// Same as `enter_scope`, but new scope is initialized with given `HashSet`.
-    pub fn add_scope(&mut self, scope: HashSet<T>) {
-        self.repr.push(scope)
+    pub fn add_scope(&mut self, scope: HashSet<T>) -> &mut Self {
+        self.repr.push(scope);
+        self
     }
 }
 
