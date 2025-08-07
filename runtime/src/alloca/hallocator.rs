@@ -140,14 +140,17 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   
   fn mark_white(&mut self) {
     let locked = self.heap.items.lock().expect("lock in white");
-    // let copy = locked.clone();
-    // drop(locked);
     
     for heaped_arena_from_slots in locked.iter() {
-      if let arena = self.arena_by_heaped(*heaped_arena_from_slots) && arena.live() {
+      let arena = &mut self.blocks[heaped_arena_from_slots.num_of_block]
+          .as_mut()
+          .expect("arena_by_heaped")
+          .items[heaped_arena_from_slots.num_of_arena];
+      
+      if arena.live() {
         arena.clear_mark();
       }
-    };
+    }
   }
   
   fn arena_by_ptr(&mut self, ptr: usize) -> &mut U {
