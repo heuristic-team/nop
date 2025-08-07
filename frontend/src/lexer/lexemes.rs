@@ -6,6 +6,7 @@ use super::{Span, WithSpan};
 pub type Lexeme = WithSpan<Token>;
 pub type LexemesState = usize;
 
+/// Container for lexed tokens paired with corresponding spans. Provides a lot of useful methods for parsing.
 #[derive(Debug)]
 pub struct Lexemes {
     lexemes: Vec<Lexeme>,
