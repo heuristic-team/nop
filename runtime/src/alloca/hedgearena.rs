@@ -60,7 +60,7 @@ impl Arena3 for HedgeArena {
     (self.start + self.size >> 6, self.size >> 6)
   }
   
-  fn clear_mark(&mut self) {
+  fn clear_mark(&self) {
     let size_mark = self.span_start - self.start;
     assert!(size_mark > 0);
     unsafe {

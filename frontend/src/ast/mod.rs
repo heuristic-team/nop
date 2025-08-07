@@ -1,0 +1,206 @@
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::rc::Rc;
+
+use crate::lexer::{Span, WithSpan};
+use crate::typesystem::*;
+
+pub mod print;
+
+pub type AST = HashMap<String, FnDecl>;
+
+#[derive(Debug)]
+pub struct FnParam {
+    pub is_mut: bool,
+    pub name: WithSpan<String>,
+    pub tp: WithSpan<Rc<Type>>,
+}
+
+#[derive(Debug)]
+pub struct FnDecl {
+    pub name: WithSpan<String>,
+    pub tp: WithSpan<Rc<Type>>,
+    pub params: Vec<FnParam>,
+    pub body: Expr,
+}
+
+impl FnDecl {
+    pub fn formal_type(&self) -> Type {
+        let params = self.params.iter().map(|p| &p.tp.value).cloned().collect();
+        let rettype = self.tp.value.clone();
+        Type::Function { params, rettype }
+    }
+}
+
+pub type Precedence = u8;
+
+pub enum Associativity {
+    Left,
+    Right,
+}
+
+// #[derive(Debug, Clone, Copy)]
+// pub enum UnaryOp {
+//     Negate,
+// }
+
+#[derive(Debug, Clone, Copy)]
+pub enum BinaryOp {
+    Assign,
+    Plus,
+    Minus,
+    Mul,
+}
+
+impl BinaryOp {
+    pub fn prec(&self) -> Precedence {
+        match self {
+            Self::Assign => 1,
+            Self::Plus => 4,
+            Self::Minus => 4,
+            Self::Mul => 5,
+        }
+    }
+
+    pub fn assoc(&self) -> Associativity {
+        match self {
+            BinaryOp::Assign => Associativity::Right,
+            BinaryOp::Plus | BinaryOp::Minus | BinaryOp::Mul => Associativity::Left,
+        }
+    }
+
+    pub fn is_cmp(&self) -> bool {
+        match self {
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Declare {
+        is_mut: bool,
+        name: WithSpan<String>,
+        tp: WithSpan<Rc<Type>>,
+        value: Box<Expr>,
+    },
+    Ret {
+        value: Option<Box<Expr>>,
+        span: Span,
+    },
+    Block {
+        tp: Rc<Type>,
+        body: Vec<Expr>,
+        span: Span,
+    },
+    While {
+        // tp: Rc<Type>, // TODO, see issue #18
+        cond: Box<Expr>,
+        body: Box<Expr>,
+        span: Span,
+    },
+    If {
+        tp: Rc<Type>,
+        cond: Box<Expr>,
+        on_true: Box<Expr>,
+        on_false: Option<Box<Expr>>,
+        kw_span: Span,
+        in_stmt_pos: bool,
+    },
+    Num {
+        tp: Rc<Type>,
+        value: WithSpan<u64>,
+    },
+    Bool {
+        value: bool,
+        span: Span,
+    },
+    Ref {
+        tp: Rc<Type>,
+        name: WithSpan<String>,
+    },
+    Call {
+        tp: Rc<Type>,
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+        span: Span,
+    },
+    // Unary {
+    //     op: UnaryOp,
+    //     operand: Box<Expr>,
+    // },
+    Binary {
+        tp: Rc<Type>,
+        op: WithSpan<BinaryOp>,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+}
+
+impl Expr {
+    pub fn tp(&self) -> &Type {
+        match self {
+            Expr::Num { tp, .. }
+            | Expr::Ref { tp, .. }
+            | Expr::Call { tp, .. }
+            | Expr::Binary { tp, .. }
+            | Expr::Block { tp, .. }
+            | Expr::If { tp, .. } => tp,
+            Expr::Bool { .. } => &Type::Bool,
+            Expr::Declare { .. } => &Type::Unit,
+            Expr::Ret { .. } => &Type::Bottom,
+            Expr::While { .. } => &Type::Unit, // to change, see issue #18
+        }
+    }
+
+    pub fn tp_rc(&self) -> Rc<Type> {
+        match self {
+            Expr::Num { tp, .. }
+            | Expr::Ref { tp, .. }
+            | Expr::Call { tp, .. }
+            | Expr::Binary { tp, .. }
+            | Expr::Block { tp, .. }
+            | Expr::If { tp, .. } => tp.clone(),
+            Expr::Bool { .. } => Rc::new(Type::Bool),
+            Expr::Declare { .. } => Rc::new(Type::Unit),
+            Expr::Ret { .. } => Rc::new(Type::Bottom),
+            Expr::While { .. } => Rc::new(Type::Unit), // to change, see issue #18
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        match self {
+            Expr::Block { span, .. } => *span,
+            Expr::Bool { span, .. } => *span,
+            Expr::Num { value, .. } => value.span,
+            Expr::Ref { name, .. } => name.span,
+            Expr::Call { span, .. } => *span,
+            Expr::While { span, .. } => *span,
+            Expr::If {
+                kw_span,
+                on_true,
+                on_false: None,
+                ..
+            } => Span::new(kw_span.start, on_true.span().end),
+            Expr::If {
+                kw_span,
+                on_false: Some(on_false),
+                ..
+            } => Span::new(kw_span.start, on_false.span().end),
+            Expr::Binary { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
+            Expr::Declare { name, value, .. } => Span::new(name.span.start, value.span().end),
+            Expr::Ret { span, .. } => *span,
+        }
+    }
+}
+
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOp::Assign => write!(f, "="),
+            BinaryOp::Plus => write!(f, "+"),
+            BinaryOp::Minus => write!(f, "-"),
+            BinaryOp::Mul => write!(f, "*"),
+        }
+    }
+}

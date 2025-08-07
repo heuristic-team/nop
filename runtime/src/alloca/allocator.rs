@@ -12,7 +12,7 @@ pub trait ArenaAllocator3<T: Object, U: Arena3> {
   
   fn new(max_size: usize) -> Self;
   
-  fn alloc(&mut self, o: &T) -> ptr;
+  fn alloc(&mut self, object_instance: &T) -> ptr;
   
   fn mark_white(&mut self);
   
