@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -10,23 +9,22 @@ use crate::TranslationUnit;
 use crate::TypeAliasMap;
 use crate::ast::*;
 use crate::lexer::{Span, WithSpan};
+use crate::support::ScopedMap;
 use crate::typesystem::Type;
 
-type Ctx = HashMap<String, Rc<Type>>;
+type Ctx = ScopedMap<String, Rc<Type>>;
 
 pub struct TypeCheck {}
 
 /// Deduce and check types in declaration body
-fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, decl: &mut FnDecl) {
-    let mut typemap = typemap.clone();
+fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Ctx, decl: &mut FnDecl) {
+    typemap.enter_scope();
 
     for FnParam { name, tp, .. } in &decl.params {
-        typemap
-            .to_mut()
-            .insert(name.value.clone(), tp.value.clone());
+        typemap.insert(name.value.clone(), tp.value.clone());
     }
 
-    process_expr(diags, &mut typemap, &mut decl.body);
+    process_expr(diags, typemap, &mut decl.body);
 
     // check that all `ret` expressions in function body return values of expected type
     for_each_expr(
@@ -49,11 +47,13 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, decl: &mut 
         },
         &decl.body,
     );
+
+    typemap.leave_scope();
 }
 
 /// Recursively go through expression tree, deduce types where needed and possible,
 /// and check that all types are valid and compatible
-fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, expr: &mut Expr) {
+fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Ctx, expr: &mut Expr) {
     match expr {
         Expr::Num { tp, value } => {
             // TODO: check that `tp` is valid and can contain the literal
@@ -202,18 +202,17 @@ fn process_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Cow<Ctx>, expr: &mut 
                 }
             }
 
-            typemap
-                .to_mut()
-                .insert(name.value.clone(), tp.value.clone());
+            typemap.insert(name.value.clone(), tp.value.clone());
         }
         Expr::Block { tp, body, .. } => {
-            let mut typemap = Cow::Borrowed(typemap.as_ref());
+            typemap.enter_scope();
             body.iter_mut()
-                .for_each(|e| process_expr(diags, &mut typemap, e));
+                .for_each(|e| process_expr(diags, typemap, e));
             *tp = body
                 .last()
                 .map(|e| e.tp_rc())
                 .unwrap_or_else(|| Rc::new(Type::Unit));
+            typemap.leave_scope();
         }
         Expr::Ret { value, .. } => {
             if let Some(value) = value {
@@ -330,9 +329,11 @@ fn check_call_args<T: AsRef<Type>>(
 }
 
 fn ctx_from_ast(ast: &AST) -> Ctx {
-    ast.iter()
-        .map(|decl| (decl.0.clone(), Rc::new(decl.1.formal_type())))
-        .collect()
+    ScopedMap::with_scope(
+        ast.iter()
+            .map(|decl| (decl.0.clone(), Rc::new(decl.1.formal_type())))
+            .collect(),
+    )
 }
 
 impl Pass for TypeCheck {
@@ -342,9 +343,9 @@ impl Pass for TypeCheck {
     fn run(&mut self, (mut ast, typemap): Self::Input) -> Res<Self::Output> {
         let mut diags = vec![];
 
-        let ctx = ctx_from_ast(&ast);
+        let mut ctx = ctx_from_ast(&ast);
         for decl in ast.values_mut() {
-            process_decl(&mut diags, &mut Cow::Borrowed(&ctx), decl);
+            process_decl(&mut diags, &mut ctx, decl);
         }
 
         if diags.is_empty() {
