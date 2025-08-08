@@ -1,3 +1,4 @@
+/// Source file span. Basically a pair of offsets used for diagnostic printing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span {
     pub start: usize,
@@ -10,6 +11,7 @@ impl Span {
     }
 }
 
+/// Value paired with source file span.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WithSpan<T> {
     pub value: T,
@@ -21,6 +23,7 @@ impl<T> WithSpan<T> {
         Self { value, span }
     }
 
+    /// Replace the value, leaving the span unchanged.
     pub fn replace<U>(self, value: U) -> WithSpan<U> {
         WithSpan {
             value,
@@ -28,6 +31,7 @@ impl<T> WithSpan<T> {
         }
     }
 
+    /// Apply a function to the value, leaving the span unchanged.
     pub fn map<U, F>(self, f: F) -> WithSpan<U>
     where
         F: FnOnce(T) -> U,

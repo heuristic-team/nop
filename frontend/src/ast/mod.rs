@@ -9,6 +9,9 @@ pub mod print;
 
 pub type AST = HashMap<String, FnDecl>;
 
+/// Function parameter description.
+///
+/// For example, function `fn foo(mut a: int, b: bool)` has two parameters: a mutable `a` of type `int` and immutable `b` of type `bool`.
 #[derive(Debug)]
 pub struct FnParam {
     pub is_mut: bool,
@@ -16,18 +19,22 @@ pub struct FnParam {
     pub tp: WithSpan<Rc<Type>>,
 }
 
+/// Function declaration desription. A literal translation of the source code.
 #[derive(Debug)]
 pub struct FnDecl {
     pub name: WithSpan<String>,
-    pub tp: WithSpan<Rc<Type>>,
+    pub return_type: WithSpan<Rc<Type>>,
     pub params: Vec<FnParam>,
     pub body: Expr,
 }
 
 impl FnDecl {
-    pub fn formal_type(&self) -> Type {
+    /// Return the type of function for typecheck.
+    ///
+    /// `FnDecl` itself contains the information gathered from the source code, such as parameters types and return type, but typecheck needs type like `fn(int, int) int` to process the call.
+    pub fn full_type(&self) -> Type {
         let params = self.params.iter().map(|p| &p.tp.value).cloned().collect();
-        let rettype = self.tp.value.clone();
+        let rettype = self.return_type.value.clone();
         Type::Function { params, rettype }
     }
 }
@@ -53,6 +60,7 @@ pub enum BinaryOp {
 }
 
 impl BinaryOp {
+    /// Binary operator precedence for parsing.
     pub fn prec(&self) -> Precedence {
         match self {
             Self::Assign => 1,
@@ -62,6 +70,7 @@ impl BinaryOp {
         }
     }
 
+    /// Binary operator associativity for parsing.
     pub fn assoc(&self) -> Associativity {
         match self {
             BinaryOp::Assign => Associativity::Right,
@@ -69,6 +78,9 @@ impl BinaryOp {
         }
     }
 
+    /// Check if the operator is some form of comparison, meaning it will return `bool`, instead of `T`.
+    /// 
+    /// This may change when operators are handled as proper method calls.
     pub fn is_cmp(&self) -> bool {
         match self {
             _ => false,
@@ -138,6 +150,9 @@ pub enum Expr {
 }
 
 impl Expr {
+    /// Get an immutable reference to the type of the expression.
+    ///
+    /// See `tp_rc` if you not only need to inspect the type, but also put it somewhere in `Rc`.
     pub fn tp(&self) -> &Type {
         match self {
             Expr::Num { tp, .. }
@@ -152,7 +167,9 @@ impl Expr {
             Expr::While { .. } => &Type::Unit, // to change, see issue #18
         }
     }
-
+    /// Get an `Rc` with the type of the expression.
+    ///
+    /// See `tp` if you only need to inspect the type.
     pub fn tp_rc(&self) -> Rc<Type> {
         match self {
             Expr::Num { tp, .. }
@@ -168,6 +185,7 @@ impl Expr {
         }
     }
 
+    /// Obtain the source file span corresponding to given expression. Used for diagnostics printing.
     pub fn span(&self) -> Span {
         match self {
             Expr::Block { span, .. } => *span,

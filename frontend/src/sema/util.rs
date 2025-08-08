@@ -1,5 +1,8 @@
 use crate::ast::Expr;
 
+/// Utilitary function to visit the whole expression tree and run some context-free function on each node.
+///
+/// The function should be context-free because there is no options to, for example, enter and leave scopes when entering a block. This functionality needs a more sophisticated system to work.
 pub fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
     f(root);
     match root {

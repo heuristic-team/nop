@@ -8,11 +8,23 @@ mod res;
 pub use res::ParseError;
 use res::Res;
 
+/// Parser of function and type declarations from the list of lexemes.
+///
+/// Public API is `parse`, which takes `Lexemes` and returns either a pair of vectors with function declarations and type declarations, or a `ParseError`.
+///
+/// General internal style is creating small parsers as methods that parse different entities atomically and branching on them by using `peek` on lexemes and matching the next token.
+///
+/// See `token!`, `get`, `get_mut` as the most used tools.
 #[derive(Debug)]
 pub struct Parser {
     lexemes: Lexemes,
 }
 
+/// Macro for token matching and mapping. Supports `match` syntax and expands into a lambda with `match` inside.
+///
+/// Example usage:
+/// - `token!(Token::LParen, Token::RParen, Token::Id(_))` - matches `(`, `)` or any identifier
+/// - `token!(Token::Id(id) => id.as_str(), Token::LParen => "(", Token::RParen => ")")` - matches identifier and extracts the literal from it, or matches `(` or `)` and returns the specified string literal.
 macro_rules! token {
     ($($p:pat),*) => {
         |_token|
@@ -34,6 +46,7 @@ macro_rules! token {
     };
 }
 
+/// Create a vector of strings from the given list of expressions. Used to format tokens and mixing them with string literals, for example `expected!(Token::LParen, Token::RParen, "parentheses")`.
 macro_rules! expected {
     ($($e:expr),*) => {
         vec![$($e.to_string()),*]
@@ -64,12 +77,14 @@ impl Parser {
                 }
             }
 
+            self.get(token!(Token::EOL, Token::EOF), expected!(Token::EOL, Token::EOF))?;
             self.eat_while(token!(Token::EOL));
         }
 
         Ok((fn_decls, type_decls))
     }
 
+    /// Eat token if `matcher` is satisfied. Returns `true` if the condition was satisfied and token is eaten.
     fn eat_if(&mut self, matcher: impl FnOnce(&Token) -> bool) -> bool {
         let WithSpan { value: token, .. } = self.lexemes.peek();
         let res = matcher(&token);
@@ -79,6 +94,7 @@ impl Parser {
         res
     }
 
+    /// Eat tokens while `matcher` is satisfied.
     fn eat_while(&mut self, mut matcher: impl FnMut(&Token) -> bool) {
         loop {
             let WithSpan { value: token, .. } = self.lexemes.peek();
@@ -90,6 +106,9 @@ impl Parser {
         }
     }
 
+    /// Used in pair with the simple version of `token!`, extracts the lexeme or returns a `ParseError` with specified `expected` otherwise. Lexeme is eaten in each case.
+    ///
+    /// Basic usage is `self.get(token!(Token::Fn), expected!(Token::Fn))`.
     fn get(&mut self, matcher: impl FnOnce(&Token) -> bool, expected: Vec<String>) -> Res<Lexeme> {
         let lexeme = self.lexemes.next();
         if matcher(&lexeme.value) {
@@ -100,6 +119,9 @@ impl Parser {
         }
     }
 
+    /// Used in pair with the mapping version of `token!`, extracts the lexeme and maps its token or returns a `ParseError` with specified `expected` otherwise. Lexeme is eaten in each case.
+    ///
+    /// Basic usage is `self.get_map(token!(Token::Id(id) => id), expected!("identifier"))`.
     fn get_map<T>(
         &mut self,
         matcher: impl FnOnce(Token) -> Option<T>,
@@ -116,10 +138,14 @@ impl Parser {
         }
     }
 
+    /// Parse an identifier and extract the literal and span from it. Useful when parsing names of any kind.
     fn parse_id(&mut self) -> Res<WithSpan<String>> {
         self.get_map(token!(Token::Id(id) => id), expected!("identifier"))
     }
 
+    /// Parse struct type description (`struct { ... }`).
+    ///
+    /// Expects the first token to be `struct`.
     fn parse_struct_type(&mut self) -> Res<Type> {
         self.get(token!(Token::Struct), expected!(Token::Struct))?;
         self.eat_while(token!(Token::EOL));
@@ -164,6 +190,9 @@ impl Parser {
         Ok(Type::Struct(fields))
     }
 
+    /// Parse type. This can be a primitive type or type alias, or a struct type.
+    ///
+    /// Expects the first token to be an identifier or `struct`.
     fn parse_type(&mut self) -> Res<WithSpan<Type>> {
         let WithSpan { value: token, span } = self.lexemes.peek();
 
@@ -179,6 +208,9 @@ impl Parser {
         Ok(WithSpan::new(tp, span))
     }
 
+    /// Parse type declaration (`type = ...`).
+    ///
+    /// Expects the first token to be `type`.
     fn parse_type_decl(&mut self) -> Res<TypeDecl> {
         self.get(token!(Token::Type), expected!(Token::Type))?;
 
@@ -194,6 +226,9 @@ impl Parser {
         })
     }
 
+    /// Parse function declaration (name, parameters, return type and body).
+    ///
+    /// Expects the first token to be `fn`.
     fn parse_fn_decl(&mut self) -> Res<FnDecl> {
         self.get(token!(Token::Fn), expected!(Token::Fn))?;
 
@@ -217,7 +252,7 @@ impl Parser {
 
         let decl = FnDecl {
             name,
-            tp: tp.map(Rc::new),
+            return_type: tp.map(Rc::new),
             params,
             body,
         };
@@ -225,6 +260,9 @@ impl Parser {
         Ok(decl)
     }
 
+    /// Parse function declaration parameters list (`(mut a: int, b: bool)` with support for trailing comma).
+    ///
+    /// Expects the first token to be `(`.
     fn parse_fn_params(&mut self) -> Res<Vec<FnParam>> {
         self.get(token!(Token::LParen), expected!(Token::LParen))?;
 
@@ -271,6 +309,9 @@ impl Parser {
         Ok(res)
     }
 
+    /// Parse any expression and provide it with information about statement position.
+    ///
+    /// Expects the first token to be either `mut`, identifier, `ret`, or anything that is expected by `parse_expr`.
     fn parse_top_level_expr(&mut self) -> Res<Expr> {
         match self.lexemes.peek_n::<3>().map(|l| l.value) {
             [Token::Mut, Token::Id(_), Token::Define]
@@ -283,6 +324,9 @@ impl Parser {
         }
     }
 
+    /// Parse return (`ret` or `ret EXPR`).
+    ///
+    /// Expects the first token to be `ret`.
     fn parse_ret_expr(&mut self) -> Res<Expr> {
         let WithSpan { span: kw_span, .. } = self.get(token!(Token::Ret), expected!(Token::Ret))?;
 
@@ -298,9 +342,10 @@ impl Parser {
         Ok(Expr::Ret { value, span })
     }
 
+    /// Parse variable declaration (`NAME := VALUE` or `NAME: TYPE = VALUE` with optional `mut` before name).
+    ///
+    /// Expects the first token to be either `mut` or an identifier.
     fn parse_declaration_expr(&mut self) -> Res<Expr> {
-        // NAME := VALUE or NAME: TYPE = VALUE
-
         let is_mut = self.eat_if(token!(Token::Mut));
 
         let name = self.parse_id()?;
@@ -326,17 +371,30 @@ impl Parser {
         let value = self.parse_expr(false)?;
         Ok(Expr::Declare {
             is_mut,
-            name: name,
+            name,
             tp: tp.map(Rc::new),
             value: Box::new(value),
         })
     }
 
+    /// Parse local expression. This can be a simple term or a binary expression chain, but not a variable declaration or return.
+    ///
+    /// Expects that the input starts with some kind of term.
     fn parse_expr(&mut self, in_stmt_pos: bool) -> Res<Expr> {
         let lhs = self.parse_term(in_stmt_pos)?;
         self.parse_full_expr(0, lhs)
     }
 
+    /// Parse term. Term can be:
+    /// 
+    /// - an expression in parentheses
+    /// - a block
+    /// - a conditional expression
+    /// - a loop
+    /// - a boolean or integer literal
+    /// - a reference to some entity by its name
+    ///
+    /// Expects that the first token is the one expected by at least one of these parsers.
     fn parse_term(&mut self, in_stmt_pos: bool) -> Res<Expr> {
         let WithSpan { value: token, span } = self.lexemes.peek();
         let term = match token {
@@ -381,6 +439,11 @@ impl Parser {
         }
     }
 
+    /// Parse call **operator**. This means that the callee is already parsed, for example:
+    ///
+    /// `foo.bar(1, 2, 3)` - here callee is `foo.bar` and should already be parsed, thus the input to `parse_call_expr` should be `(1, 2, 3)`.
+    ///
+    /// Expects the first token to be `(`.
     fn parse_call_expr(&mut self, callee: Expr) -> Res<Expr> {
         self.get(token!(Token::LParen), expected!(Token::LParen))?;
 
@@ -423,6 +486,9 @@ impl Parser {
         })
     }
 
+    /// Parse block (`{ EXPR* }`).
+    ///
+    /// Expects the first token to be `{`
     fn parse_block(&mut self) -> Res<Expr> {
         let lbrace_offset = self
             .get(token!(Token::LBrace), expected!(Token::LBrace))?
@@ -462,6 +528,9 @@ impl Parser {
         })
     }
 
+    /// Parse loop (`for ... do ...`).
+    ///
+    /// Expects the first token to be `for`.
     fn parse_loop(&mut self) -> Res<Expr> {
         let kw_span = self.get(token!(Token::For), expected!(Token::For))?.span;
 
@@ -480,6 +549,11 @@ impl Parser {
         })
     }
 
+    /// Parse conditional expression (`if ... then ...` or `if ... then ... else ...`).
+    ///
+    /// Expects the first token to be `if`.
+    ///
+    /// `in_stmt_pos` is required to pass that information to the expression itself so typecheck knows when to ignore return types of its branches and allow omitted `else` branch in statement position.
     fn parse_conditional(&mut self, in_stmt_pos: bool) -> Res<Expr> {
         let kw_span = self.get(token!(Token::If), expected!(Token::If))?.span;
 
@@ -505,10 +579,17 @@ impl Parser {
         })
     }
 
+    /// Get precedence of the binary operator corresponding to the current token, if such operator exists (for example, there is no operator for `(`).
     fn get_cur_op_prec(&self) -> Option<Precedence> {
         bin_op_from_token(&self.lexemes.peek().value).map(|op| op.prec())
     }
 
+    /// Parse expression after its first term has been parsed.
+    ///
+    /// For example, when parsing `1 + 2`, `parse_full_expr` will be called after `parse_term` has eaten `1`.
+    /// Thus the input will be `+ 2` and `lhs` is `Num(1)`.
+    ///
+    /// If the first token is not an operator, it simply returns `lhs`.
     fn parse_full_expr(&mut self, prev_prec: Precedence, mut lhs: Expr) -> Res<Expr> {
         loop {
             let cur_prec = match self.get_cur_op_prec() {
@@ -547,6 +628,7 @@ impl Parser {
     }
 }
 
+/// Try create a binary operator from a token. Used for parsing binary expressions.
 fn bin_op_from_token(token: &Token) -> Option<BinaryOp> {
     match token {
         Token::Plus => Some(BinaryOp::Plus),

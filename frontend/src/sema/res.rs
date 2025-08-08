@@ -1,5 +1,8 @@
 use crate::Diagnostic;
 
+/// Custom result type for semantic analysis.
+///
+/// Error is bound to `Vec<Diagnostic>` as the only needed type, `Problematic` is used when a pass generated some diagnostics, but they are not fatal.
 #[derive(Debug)]
 pub enum Res<T> {
     Ok(T),
@@ -55,7 +58,7 @@ impl<T> Res<T> {
         }
     }
 
-    pub fn get_value(&self) -> Option<&T> {
+    pub fn inspect_value(&self) -> Option<&T> {
         match self {
             Res::Ok(value) | Res::Problematic(value, _) => Some(value),
             Res::Fatal(_) => None,
@@ -69,7 +72,7 @@ impl<T> Res<T> {
         }
     }
 
-    pub fn get_diagnostics(&self) -> Option<impl Iterator<Item = &Diagnostic>> {
+    pub fn inspect_diagnostics(&self) -> Option<impl Iterator<Item = &Diagnostic>> {
         match self {
             Res::Ok(_) => None,
             Res::Problematic(_, diags) | Res::Fatal(diags) => Some(diags.into_iter()),

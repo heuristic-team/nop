@@ -8,12 +8,11 @@ use crate::ast::*;
 use crate::lexer::WithSpan;
 use crate::support::ScopedSet;
 
+/// Pass ther checks that all references to named values (variables, parameters, functions) are valid.
 pub struct NameCorrectnessCheck {}
 
 type Names<'a> = ScopedSet<&'a str>;
 
-/// Recursively go through expression tree and check that all references are valid,
-/// adding a diagnostic otherwise
 fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>, expr: &'a Expr) {
     match expr {
         Expr::Ref { name, .. } if !ctx.contains(name.value.as_str()) => {
@@ -74,7 +73,7 @@ fn check_references_in_decl<'a>(
 ) {
     ctx.enter_scope();
     for FnParam { name, .. } in decl.params.iter() {
-        // TODO: check that parameters names are unique in the list
+        // TODO: check that parameter names are unique in the list (hint: `cur_scope` on `ScopedSet` will be useful here)
         ctx.insert(&name.value);
     }
 
@@ -103,8 +102,7 @@ impl Pass for NameCorrectnessCheck {
             }
         }
 
-        let mut ctx = ScopedSet::new();
-        ctx.add_scope(ast.keys().map(|s| s.as_str()).collect());
+        let mut ctx = ScopedSet::with_scope(ast.keys().map(|s| s.as_str()).collect());
         for decl in ast.values() {
             check_references_in_decl(&mut diags, &mut ctx, decl);
         }

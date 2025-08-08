@@ -50,10 +50,12 @@ impl Lexemes {
         }
     }
 
+    /// Check if end of input is reached.
     pub fn is_eof(&self) -> bool {
         self.offset >= self.lexemes.len()
     }
 
+    /// Peek next lexeme without extracting it. If there's no lexeme, return EOF lexeme.
     pub fn peek(&self) -> Lexeme {
         self.peek_nth(0)
     }
@@ -62,6 +64,7 @@ impl Lexemes {
         WithSpan::new(Token::EOF, self.eof_span)
     }
 
+    /// Peek `n`th lexeme. If there's not enough lexemes, return EOF lexeme.
     pub fn peek_nth(&self, n: usize) -> Lexeme {
         self.lexemes
             .get(self.offset + n)
@@ -69,24 +72,29 @@ impl Lexemes {
             .unwrap_or(self.eof())
     }
 
+    /// Peek `n` next lexemes. Any extra lexemes are replaced with EOF lexeme.
     pub fn peek_n<const N: usize>(&self) -> [Lexeme; N] {
         core::array::from_fn(|i| self.peek_nth(i))
     }
 
+    /// Get next lexeme. If there's not enough lexemes, return EOF lexeme.
     pub fn next(&mut self) -> Lexeme {
         let res = self.peek();
         self.skip_n(1);
         res
     }
 
+    /// Skip `n` next lexemes.
     pub fn skip_n(&mut self, n: usize) {
         self.offset = (self.offset + n).clamp(0, self.lexemes.len());
     }
 
+    /// Get lexemes state to save. Used for backtracking.
     pub fn get_state(&self) -> LexemesState {
         self.offset
     }
 
+    /// Set given lexemes state.
     pub fn set_state(&mut self, state: LexemesState) {
         self.offset = state;
     }

@@ -16,7 +16,7 @@ pub fn run(fn_decls: Vec<FnDecl>, type_decls: Vec<TypeDecl>) -> Res<TranslationU
         .and_then(TypeNameCorrectnessCheck {})
         .and_then(NameCorrectnessCheck {})
         .and_then(AssignmentCorrectnessCheck {})
-        .and_then(TypeCheck {});
+        .and_then(Typing {});
 
     passes.run((fn_decls, type_decls))
 }

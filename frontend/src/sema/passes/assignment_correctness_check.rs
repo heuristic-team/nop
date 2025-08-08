@@ -5,6 +5,7 @@ use crate::ast::*;
 use crate::lexer::WithSpan;
 use crate::support::ScopedSet;
 
+/// Pass for checking that all assignment expressions are correct. This means checking that the left side of expressions like `dest = src` is a valid assignment destination.
 pub struct AssignmentCorrectnessCheck {}
 
 type MutableVars<'a> = ScopedSet<&'a str>;
@@ -24,7 +25,7 @@ fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
 
 /// Recursively go through expression tree, find expressions like `dest = src` and
 /// verify that their destination operand is an expression that is assignable to
-fn find_and_check_assignments<'a, 'b: 'a>(
+fn check_expr_assignments<'a, 'b: 'a>(
     diags: &mut Vec<Diagnostic>,
     ctx: &'a mut MutableVars<'b>,
     expr: &'b Expr,
@@ -32,13 +33,13 @@ fn find_and_check_assignments<'a, 'b: 'a>(
     match expr {
         Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
         Expr::Call { callee, args, .. } => {
-            find_and_check_assignments(diags, ctx, callee);
+            check_expr_assignments(diags, ctx, callee);
             args.iter()
-                .for_each(|arg| find_and_check_assignments(diags, ctx, arg));
+                .for_each(|arg| check_expr_assignments(diags, ctx, arg));
         }
         Expr::While { cond, body, .. } => {
-            find_and_check_assignments(diags, ctx, cond);
-            find_and_check_assignments(diags, ctx, body);
+            check_expr_assignments(diags, ctx, cond);
+            check_expr_assignments(diags, ctx, body);
         }
         Expr::If {
             cond,
@@ -46,10 +47,10 @@ fn find_and_check_assignments<'a, 'b: 'a>(
             on_false,
             ..
         } => {
-            find_and_check_assignments(diags, ctx, cond);
-            find_and_check_assignments(diags, ctx, on_true);
+            check_expr_assignments(diags, ctx, cond);
+            check_expr_assignments(diags, ctx, on_true);
             if let Some(on_false) = on_false {
-                find_and_check_assignments(diags, ctx, on_false);
+                check_expr_assignments(diags, ctx, on_false);
             }
         }
         Expr::Binary {
@@ -68,12 +69,12 @@ fn find_and_check_assignments<'a, 'b: 'a>(
                     *op_span,
                 ))
             }
-            find_and_check_assignments(diags, ctx, lhs);
-            find_and_check_assignments(diags, ctx, rhs);
+            check_expr_assignments(diags, ctx, lhs);
+            check_expr_assignments(diags, ctx, rhs);
         }
         Expr::Binary { lhs, rhs, .. } => {
-            find_and_check_assignments(diags, ctx, lhs);
-            find_and_check_assignments(diags, ctx, rhs);
+            check_expr_assignments(diags, ctx, lhs);
+            check_expr_assignments(diags, ctx, rhs);
         }
         Expr::Declare {
             is_mut,
@@ -81,7 +82,7 @@ fn find_and_check_assignments<'a, 'b: 'a>(
             value,
             ..
         } => {
-            find_and_check_assignments(diags, ctx, value);
+            check_expr_assignments(diags, ctx, value);
             if *is_mut {
                 ctx.insert(&name.value);
             }
@@ -89,18 +90,18 @@ fn find_and_check_assignments<'a, 'b: 'a>(
         Expr::Block { body, .. } => {
             ctx.enter_scope();
             body.iter()
-                .for_each(|e| find_and_check_assignments(diags, ctx, e));
+                .for_each(|e| check_expr_assignments(diags, ctx, e));
             ctx.leave_scope();
         }
         Expr::Ret { value, .. } => {
             if let Some(e) = value {
-                find_and_check_assignments(diags, ctx, e);
+                check_expr_assignments(diags, ctx, e);
             }
         }
     }
 }
 
-fn check_decl(diags: &mut Vec<Diagnostic>, decl: &FnDecl) {
+fn check_decl_for_assignments(diags: &mut Vec<Diagnostic>, decl: &FnDecl) {
     let mut ctx = ScopedSet::with_scope(
         decl.params
             .iter()
@@ -109,7 +110,7 @@ fn check_decl(diags: &mut Vec<Diagnostic>, decl: &FnDecl) {
             .collect(),
     );
 
-    find_and_check_assignments(diags, &mut ctx, &decl.body)
+    check_expr_assignments(diags, &mut ctx, &decl.body)
 }
 
 impl Pass for AssignmentCorrectnessCheck {
@@ -119,7 +120,7 @@ impl Pass for AssignmentCorrectnessCheck {
     fn run(&mut self, (ast, typemap): Self::Input) -> Res<Self::Output> {
         let mut diags = vec![];
 
-        ast.values().for_each(|decl| check_decl(&mut diags, decl));
+        ast.values().for_each(|decl| check_decl_for_assignments(&mut diags, decl));
 
         if diags.is_empty() {
             Res::Ok((ast, typemap))

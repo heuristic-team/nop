@@ -63,17 +63,24 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn current_offset(&mut self) -> usize {
-        self.it.peek().map(|&(n, _)| n).unwrap_or(self.file_size)
-    }
-
-    fn new(input: &'a str) -> Self {
+    pub fn new(input: &'a str) -> Self {
         Lexer {
             file_size: input.len(),
             ret: Vec::new(),
             it: input.chars().enumerate().peekable(),
         }
     }
+
+    pub fn run(mut self) -> Lexemes {
+        self.match_loop();
+        let eof_span = Span::new(self.file_size, self.file_size);
+        Lexemes::new(self.ret, eof_span)
+    }
+
+    fn current_offset(&mut self) -> usize {
+        self.it.peek().map(|&(n, _)| n).unwrap_or(self.file_size)
+    }
+
     fn new_line(&mut self) {
         let pos = self.current_offset() - 1;
         let token = Token::EOL;
@@ -218,12 +225,6 @@ impl<'a> Lexer<'a> {
                 panic!("lexer couldn't discern some symbol: {}", ch);
             }
         }
-    }
-
-    pub fn run(mut self) -> Lexemes {
-        self.match_loop();
-        let eof_span = Span::new(self.file_size, self.file_size);
-        Lexemes::new(self.ret, eof_span)
     }
 }
 
