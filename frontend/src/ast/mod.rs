@@ -79,7 +79,7 @@ impl BinaryOp {
     }
 
     /// Check if the operator is some form of comparison, meaning it will return `bool`, instead of `T`.
-    /// 
+    ///
     /// This may change when operators are handled as proper method calls.
     pub fn is_cmp(&self) -> bool {
         match self {
@@ -131,6 +131,11 @@ pub enum Expr {
         tp: Rc<Type>,
         name: WithSpan<String>,
     },
+    MemberRef {
+        tp: Rc<Type>,
+        target: Box<Expr>,
+        member: WithSpan<String>,
+    },
     Call {
         tp: Rc<Type>,
         callee: Box<Expr>,
@@ -160,7 +165,9 @@ impl Expr {
             | Expr::Call { tp, .. }
             | Expr::Binary { tp, .. }
             | Expr::Block { tp, .. }
-            | Expr::If { tp, .. } => tp,
+            | Expr::If { tp, .. }
+            | Expr::MemberRef { tp, .. } => tp,
+
             Expr::Bool { .. } => &Type::Bool,
             Expr::Declare { .. } => &Type::Unit,
             Expr::Ret { .. } => &Type::Bottom,
@@ -177,7 +184,9 @@ impl Expr {
             | Expr::Call { tp, .. }
             | Expr::Binary { tp, .. }
             | Expr::Block { tp, .. }
-            | Expr::If { tp, .. } => tp.clone(),
+            | Expr::If { tp, .. }
+            | Expr::MemberRef { tp, .. } => tp.clone(),
+
             Expr::Bool { .. } => Rc::new(Type::Bool),
             Expr::Declare { .. } => Rc::new(Type::Unit),
             Expr::Ret { .. } => Rc::new(Type::Bottom),
@@ -208,6 +217,7 @@ impl Expr {
             Expr::Binary { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
             Expr::Declare { name, value, .. } => Span::new(name.span.start, value.span().end),
             Expr::Ret { span, .. } => *span,
+            Expr::MemberRef { member: member_name, .. } => member_name.span,
         }
     }
 }

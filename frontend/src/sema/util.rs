@@ -28,10 +28,9 @@ pub fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
                 for_each_expr(f, on_false);
             }
         }
-        Expr::Block { body, .. } => {
-            body.iter().for_each(|e| for_each_expr(f, e));
-        }
+        Expr::Block { body, .. } => body.iter().for_each(|e| for_each_expr(f, e)),
         Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
+        Expr::MemberRef { target, .. } => for_each_expr(f, target),
         Expr::Call { callee, args, .. } => {
             for_each_expr(f, callee);
             args.iter().for_each(|e| for_each_expr(f, e));
