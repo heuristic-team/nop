@@ -25,6 +25,7 @@ const KEYWORDS: &[(Token, &str)] = &[
     (Token::Struct, "struct"),
 ];
 
+/// Single-char tokens
 const SYMBOLS: &[(char, Token)] = &[
     ('(', Token::LParen),
     (')', Token::RParen),
@@ -37,104 +38,12 @@ const SYMBOLS: &[(char, Token)] = &[
     ('*', Token::Mul),
 ];
 
+/// Pairs of symbols where the first is a prefix of the second, like `=` and `==`.
 const MULTIPLE_CHAR_SYMBOLS: &[(char, Token, &'static str, Token)] = &[
     ('=', Token::Assign, "==", Token::Eq),
     (':', Token::Colon, ":=", Token::Define),
     ('-', Token::Minus, "->", Token::Arrow),
 ];
-
-type It<'a> = Peekable<Enumerate<Chars<'a>>>;
-
-struct LexerCtx {
-    line: usize,
-    file_size: usize,
-    ret: Vec<Lexeme>,
-}
-
-impl LexerCtx {
-    fn current_offset<'a>(&self, it: &mut It<'a>) -> usize {
-        peek_offset(it, self)
-    }
-
-    fn new(file_size: usize) -> Self {
-        LexerCtx {
-            line: 0,
-            file_size,
-            ret: Vec::new(),
-        }
-    }
-    fn new_line<'a>(&mut self, it: &mut It<'a>) {
-        let pos = self.current_offset(it) - 1;
-        let token = Token::EOL;
-        let span = Span::new(pos, pos);
-        let lexeme = Lexeme::new(token, span);
-        self.add_lexeme(lexeme);
-        self.line += 1;
-    }
-
-    fn add_lexeme(&mut self, lexeme: Lexeme) {
-        self.ret.push(lexeme);
-    }
-}
-
-fn peek_offset<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> usize {
-    let loc = it.peek();
-    loc.map(|&(n, _)| n).unwrap_or(ctx.file_size)
-}
-
-fn eat_while<'a>(f: fn(char) -> bool, it: &mut It<'a>) -> String {
-    let mut ret = String::new();
-
-    while let Some(&(_, ch)) = it.peek() {
-        if !f(ch) {
-            break;
-        }
-        ret.push(ch);
-        it.next();
-    }
-
-    ret
-}
-
-fn lex_number<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
-    let start = ctx.current_offset(it);
-
-    let num = eat_while(char::is_numeric, it);
-
-    let end = ctx.current_offset(it) - 1;
-
-    let span = Span::new(start, end);
-
-    let token = Token::Num(num.parse().unwrap());
-
-    let lexeme = Lexeme::new(token, span);
-
-    ctx.add_lexeme(lexeme);
-}
-
-fn multiple_symbol<'a>(it: &mut It<'a>, expected: &str, expected_token: Token) -> Option<Token> {
-    let mut cloned = it.clone();
-
-    let len = expected.len();
-
-    for i in expected.chars() {
-        let peeked = cloned.peek();
-        if peeked.is_none() {
-            return None;
-        }
-        let &(_, ch) = peeked.unwrap();
-        if ch != i {
-            return None;
-        }
-        cloned.next();
-    }
-
-    for _ in 0..len {
-        it.next();
-    }
-
-    Some(expected_token)
-}
 
 fn valid_id_start(ch: char) -> bool {
     ch.is_alphabetic() || ch == '_'
@@ -144,113 +53,182 @@ fn valid_id(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_'
 }
 
-fn single_symbol<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Option<Lexeme> {
-    let &(_, symbol) = it.peek().unwrap();
+/// Character iterator used for lexing
+type It<'a> = Peekable<Enumerate<Chars<'a>>>;
 
-    for (ch, token) in SYMBOLS {
-        if *ch == symbol {
-            let start = ctx.current_offset(it);
-            it.next();
-            let end = ctx.current_offset(it) - 1;
+struct Lexer<'a> {
+    it: It<'a>,
+    file_size: usize,
+    ret: Vec<Lexeme>,
+}
 
+impl<'a> Lexer<'a> {
+    fn current_offset(&mut self) -> usize {
+        self.it.peek().map(|&(n, _)| n).unwrap_or(self.file_size)
+    }
+
+    fn new(input: &'a str) -> Self {
+        Lexer {
+            file_size: input.len(),
+            ret: Vec::new(),
+            it: input.chars().enumerate().peekable(),
+        }
+    }
+    fn new_line(&mut self) {
+        let pos = self.current_offset() - 1;
+        let token = Token::EOL;
+        let span = Span::new(pos, pos);
+        let lexeme = Lexeme::new(token, span);
+        self.add_lexeme(lexeme);
+    }
+
+    fn add_lexeme(&mut self, lexeme: Lexeme) {
+        self.ret.push(lexeme);
+    }
+
+    fn eat_while(&mut self, mut f: impl FnMut(char) -> bool) -> String {
+        let mut ret = String::new();
+
+        while let Some(&(_, ch)) = self.it.peek() {
+            if !f(ch) {
+                break;
+            }
+            ret.push(ch);
+            self.it.next();
+        }
+
+        ret
+    }
+
+    fn lex_number(&mut self) {
+        let start = self.current_offset();
+        let num = self.eat_while(char::is_numeric);
+        let end = self.current_offset() - 1;
+
+        let span = Span::new(start, end);
+        let token = Token::Num(num.parse().unwrap());
+        let lexeme = Lexeme::new(token, span);
+        self.add_lexeme(lexeme);
+    }
+
+    fn multiple_symbol(&mut self, expected: &str, expected_token: Token) -> Option<Token> {
+        let mut cloned = self.it.clone();
+
+        let len = expected.len();
+
+        for i in expected.chars() {
+            let peeked = cloned.peek();
+            if peeked.is_none() {
+                return None;
+            }
+            let &(_, ch) = peeked.unwrap();
+            if ch != i {
+                return None;
+            }
+            cloned.next();
+        }
+
+        for _ in 0..len {
+            self.it.next();
+        }
+
+        Some(expected_token)
+    }
+
+    fn single_symbol(&mut self) -> Option<Lexeme> {
+        let &(_, symbol) = self.it.peek().unwrap();
+
+        for (ch, token) in SYMBOLS {
+            if *ch == symbol {
+                let start = self.current_offset();
+                self.it.next();
+
+                let span = Span::new(start, start);
+
+                let lexeme = Lexeme::new(token.clone(), span);
+
+                return Some(lexeme);
+            }
+        }
+        None
+    }
+
+    fn lex_symbols(&mut self) -> Option<Lexeme> {
+        let try_single = self.single_symbol();
+
+        if try_single.is_some() {
+            return try_single;
+        }
+
+        let start = self.current_offset();
+        let &(_, symbol) = self.it.peek().unwrap();
+
+        if let Some((fallback_token, long_token_literal, long_token)) = MULTIPLE_CHAR_SYMBOLS
+            .iter()
+            .find(|&(c, _, _, _)| *c == symbol)
+            .map(|(_, t1, lit, t2)| (t1, lit, t2))
+        {
+            let token = self.multiple_symbol(long_token_literal, long_token.clone());
+            if token.is_none() {
+                self.it.next();
+            }
+
+            let token = token.unwrap_or(fallback_token.clone());
+            let end = self.current_offset() - 1;
             let span = Span::new(start, end);
-
-            let lexeme = Lexeme::new(token.clone(), span);
+            let lexeme = Lexeme::new(token, span);
 
             return Some(lexeme);
         }
-    }
-    None
-}
 
-// redo it with returning and options instead of mutating lexer context.
-fn lex_symbols<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) -> Option<Lexeme> {
-    let try_single = single_symbol(it, ctx);
-
-    if try_single.is_some() {
-        return try_single;
+        None
     }
 
-    let start = ctx.current_offset(it);
+    fn lex_id(&mut self) -> Lexeme {
+        let start = self.current_offset();
+        let id = self.eat_while(valid_id);
+        let end = self.current_offset() - 1;
 
-    let &(_, symbol) = it.peek().unwrap();
-
-    if let Some((fallback_token, long_token_literal, long_token)) = MULTIPLE_CHAR_SYMBOLS
-        .iter()
-        .find(|&(c, _, _, _)| *c == symbol)
-        .map(|(_, t1, lit, t2)| (t1, lit, t2))
-    {
-        let token = multiple_symbol(it, long_token_literal, long_token.clone());
-        if token.is_none() {
-            it.next();
-        }
-
-        let token = token.unwrap_or(fallback_token.clone());
-        let end = ctx.current_offset(it) - 1;
         let span = Span::new(start, end);
-        let lexeme = Lexeme::new(token, span);
 
-        return Some(lexeme);
+        for (token, str) in KEYWORDS {
+            if *str == id {
+                return Lexeme::new(token.clone(), span);
+            }
+        }
+
+        Lexeme::new(Token::Id(id), span)
     }
 
-    None
-}
-
-fn lex_id<'a>(it: &mut It<'a>, ctx: &LexerCtx) -> Lexeme {
-    let start = ctx.current_offset(it);
-
-    let id = eat_while(valid_id, it);
-
-    let end = ctx.current_offset(it) - 1;
-
-    let span = Span::new(start, end);
-
-    for (token, str) in KEYWORDS {
-        if *str == id {
-            return Lexeme::new(token.clone(), span);
+    fn match_loop(&mut self) {
+        while let Some(&(_, ch)) = self.it.peek() {
+            if let Some(lexeme) = self.lex_symbols() {
+                self.add_lexeme(lexeme);
+            } else if valid_id_start(ch) {
+                let id = self.lex_id();
+                self.add_lexeme(id);
+            } else if ch.is_numeric() {
+                self.lex_number();
+            } else if ch == '\n' {
+                self.it.next();
+                self.new_line();
+            } else if ch.is_whitespace() {
+                self.it.next();
+            } else {
+                panic!("lexer couldn't discern some symbol: {}", ch);
+            }
         }
     }
 
-    Lexeme::new(Token::Id(id), span)
-}
-
-fn matcher<'a>(it: &mut It<'a>, ctx: &mut LexerCtx) {
-    while let Some(&(_, ch)) = it.peek() {
-        if let Some(lexeme) = lex_symbols(it, ctx) {
-            ctx.add_lexeme(lexeme);
-        } else if valid_id_start(ch) {
-            let id = lex_id(it, ctx);
-            ctx.add_lexeme(id);
-        } else if ch.is_numeric() {
-            lex_number(it, ctx);
-        } else if ch == '\n' {
-            it.next();
-            ctx.new_line(it);
-        } else if ch.is_whitespace() {
-            it.next();
-        } else {
-            panic!("lexer couldn't discern some symbol: {}", ch);
-        }
+    pub fn run(mut self) -> Lexemes {
+        self.match_loop();
+        let eof_span = Span::new(self.file_size, self.file_size);
+        Lexemes::new(self.ret, eof_span)
     }
-}
-
-fn perform(s: &str) -> LexerCtx {
-    let mut iter = s.chars().enumerate().peekable();
-    let mut ctx = LexerCtx::new(s.len());
-
-    matcher(&mut iter, &mut ctx);
-
-    ctx
 }
 
 pub fn lex(s: &str) -> Lexemes {
-    let ctx = perform(s);
-    let eof_span = ctx
-        .ret
-        .last()
-        .map(|l| l.span)
-        .unwrap_or(Span::new(s.len(), s.len()));
-    Lexemes::new(ctx.ret, eof_span)
+    Lexer::new(s).run()
 }
 
 #[cfg(test)]
