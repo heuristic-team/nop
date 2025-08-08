@@ -2,7 +2,9 @@ use crate::{Diagnostic, lexer::Span};
 
 pub type Res<T> = Result<T, ParseError>;
 
-/// Custom type for parse error. Should not be created manually in *most* of the cases, `get` or `get_mut` should produce these errors. Exceptions are some tricky situations like trailing comma.
+/// Custom type for parse error.
+///
+/// Should not be created manually in *most* of the cases, `get` or `get_mut` should produce these errors. Exceptions are some tricky situations like trailing comma.
 ///
 /// Has an implementation of `Into<Diagnostic>` to be passed to the driver and printed.
 #[derive(Debug)]
