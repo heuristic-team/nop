@@ -63,7 +63,7 @@ pub enum Instr {
     Br {
         true_branch: Label,
         false_branch: Label,
-        cond: Op,
+        cond: Rc<Var>,
     },
 }
 
@@ -84,7 +84,7 @@ impl Instr {
     }
 
     /// Creates 'branch' instruction.
-    pub fn create_br(true_branch: Label, false_branch: Label, cond: Op) -> Self {
+    pub fn create_br(true_branch: Label, false_branch: Label, cond: Rc<Var>) -> Self {
         Self::Br {
             true_branch,
             false_branch,
