@@ -1,5 +1,6 @@
 use crate::ast::Expr;
 
+/// Utilitary function to visit the whole expression tree.
 pub fn for_each_expr(f: &mut impl FnMut(&Expr), root: &Expr) {
     f(root);
     match root {
