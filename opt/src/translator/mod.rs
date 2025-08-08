@@ -200,7 +200,7 @@ impl ASTTranslator {
     }
 
     fn translate_function(&mut self, func: FnDecl, mut defs: Defs) -> Func {
-        let mut ir_func = Func::empty(func.name.value, func.tp.value);
+        let mut ir_func = Func::empty(func.name.value, func.return_type.value);
         for param in func.params.into_iter() {
             let param_var = Rc::new(Var::new(param.name.value, param.tp.value));
             ir_func.add_parameter(param_var.clone());
@@ -226,7 +226,7 @@ impl Translator<AST> for ASTTranslator {
             .map(|(name, func)| {
                 (
                     name.clone(),
-                    Rc::new(Var::new(func.name.value.clone(), func.tp.value.clone())),
+                    Rc::new(Var::new(func.name.value.clone(), func.return_type.value.clone())),
                 )
             })
             .collect();
