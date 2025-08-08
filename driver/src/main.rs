@@ -24,7 +24,7 @@ fn main() {
         Ok((fn_decls, type_decls)) => {
             let sema_res = sema::run(fn_decls, type_decls);
 
-            if let Some(diags) = sema_res.get_diagnostics() {
+            if let Some(diags) = sema_res.inspect_diagnostics() {
                 diags.for_each(|d| print_error(&input, d));
             }
 
