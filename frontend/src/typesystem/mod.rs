@@ -60,7 +60,7 @@ impl Display for Type {
             Type::I64 => write!(f, "i64"),
             Type::Bool => write!(f, "bool"),
             Type::Undef => write!(f, "?"),
-            Type::Alias(name) => write!(f, "alias `{}`", name),
+            Type::Alias(name) => write!(f, "{}", name),
             Type::Function { params, rettype } => {
                 write!(f, "fn (")?;
                 if let Some((last_param, init)) = params.split_last() {

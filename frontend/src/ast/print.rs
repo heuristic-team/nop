@@ -68,6 +68,10 @@ impl Expr {
             }
             Expr::Num { tp, value } => println!("Num {} {}", value.value, tp),
             Expr::Ref { tp, name } => println!("Ref {} {}", name.value, tp),
+            Expr::MemberRef { tp, target, member } => {
+                println!("MemberRef {} {}", member.value, tp);
+                target.print(depth + 1);
+            }
             Expr::Call {
                 tp, callee, args, ..
             } => {

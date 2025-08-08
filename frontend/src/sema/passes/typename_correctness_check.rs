@@ -55,6 +55,7 @@ fn check_typename_usage_in_expr(
         | Expr::Bool { .. }
         | Expr::Ref { .. }
         | Expr::Call { .. }
+        | Expr::MemberRef { .. }
         | Expr::Binary { .. } => {}
     }
 }
