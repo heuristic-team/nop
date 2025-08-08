@@ -1,37 +1,27 @@
 use crate::ast::*;
 
-fn make_offset(depth: u8) {
-    for _ in 0..depth {
-        print!("  ");
-    }
-}
-
-fn fmt_mut(is_mut: bool) -> &'static str {
-    if is_mut { "mut " } else { "" }
-}
-
-fn print_param(param: &FnParam) {
-    print!(
-        "{}{}: {}",
-        fmt_mut(param.is_mut),
-        param.name.value,
-        param.tp.value
-    );
-}
-
 impl FnDecl {
+    fn print_param(param: &FnParam) {
+        print!(
+            "{}{}: {}",
+            fmt_mut(param.is_mut),
+            param.name.value,
+            param.tp.value
+        );
+    }
+
     pub fn print(&self) {
         print!("fn {}(", self.name.value);
 
         if let Some((last_param, init)) = self.params.split_last() {
             init.iter().for_each(|param| {
-                print_param(param);
+                Self::print_param(param);
                 print!(", ");
             });
-            print_param(last_param);
+            Self::print_param(last_param);
         }
 
-        println!(") {} =", self.tp.value);
+        println!(") {} =", self.return_type.value);
 
         self.body.print(1);
     }
@@ -109,4 +99,14 @@ impl Expr {
             Expr::Bool { value, .. } => println!("Bool {value}"),
         }
     }
+}
+
+fn make_offset(depth: u8) {
+    for _ in 0..depth {
+        print!("  ");
+    }
+}
+
+fn fmt_mut(is_mut: bool) -> &'static str {
+    if is_mut { "mut " } else { "" }
 }

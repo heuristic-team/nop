@@ -31,14 +31,14 @@ fn process_decl(diags: &mut Vec<Diagnostic>, typemap: &mut Ctx, decl: &mut FnDec
         &mut |e: &Expr| match e {
             Expr::Ret { value, span } => {
                 let tp = value.as_ref().map(|e| e.tp()).unwrap_or(&Type::Unit);
-                if !match_types(tp, &decl.tp.value) {
+                if !match_types(tp, &decl.return_type.value) {
                     let msg = format!(
                         "return type mismatch: expected {}, but got {}",
-                        decl.tp.value, tp
+                        decl.return_type.value, tp
                     );
                     let note = WithSpan::new(
                         "function return type declared here".to_string(),
-                        decl.tp.span,
+                        decl.return_type.span,
                     );
                     diags.push(Diagnostic::new_with_notes(msg, *span, vec![note]));
                 }
@@ -331,7 +331,7 @@ fn check_call_args<T: AsRef<Type>>(
 fn ctx_from_ast(ast: &AST) -> Ctx {
     ScopedMap::with_scope(
         ast.iter()
-            .map(|decl| (decl.0.clone(), Rc::new(decl.1.formal_type())))
+            .map(|decl| (decl.0.clone(), Rc::new(decl.1.full_type())))
             .collect(),
     )
 }

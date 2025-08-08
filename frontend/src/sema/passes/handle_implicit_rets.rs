@@ -25,7 +25,7 @@ fn process_decl(decl: &mut FnDecl) {
     }
 
     let span = last_expr.span();
-    *last_expr = match *decl.tp.value {
+    *last_expr = match *decl.return_type.value {
         Type::Unit => Expr::Block {
             tp: Rc::new(Type::Unit),
             span: last_expr.span(),
