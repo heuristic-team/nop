@@ -12,5 +12,5 @@ pub use name_correctness_check::NameCorrectnessCheck;
 mod assignment_correctness_check;
 pub use assignment_correctness_check::AssignmentCorrectnessCheck;
 
-mod type_check;
-pub use type_check::TypeCheck;
+mod typing;
+pub use typing::Typing;

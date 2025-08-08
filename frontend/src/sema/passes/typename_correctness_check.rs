@@ -11,8 +11,10 @@ use crate::sema::util::for_each_expr;
 use crate::typesystem::Type;
 use crate::typesystem::TypeDecl;
 
+/// Pass that checks that all used type aliases are defined.
 pub struct TypeNameCorrectnessCheck {}
 
+/// Recursively check type alias usage validity, because type can be a struct description.
 fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeAliasMap, span: Span) {
     match tp {
         Type::Alias(name) => {
@@ -26,7 +28,7 @@ fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeAliasMa
         Type::Undef | Type::Bottom | Type::Unit | Type::I64 | Type::Bool => {}
 
         // TODO: nicer spans when reporting for functions (somehow)
-        // this case is unreachable currently because function types
+        // this case is unreachable because function types
         // cannot be written explicitly yet
         Type::Function { .. } => unreachable!(),
 
