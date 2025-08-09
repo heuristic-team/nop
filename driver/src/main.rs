@@ -1,4 +1,4 @@
-use frontend::lexer::lex;
+use frontend::{lexer::lex, print::PrettyPrintable};
 use frontend::parser::Parser;
 use frontend::sema;
 
@@ -30,9 +30,7 @@ fn main() {
 
             if let Some(unit) = sema_res.extract_value() {
                 println!("post-sema AST:");
-                for decl in unit.0.values() {
-                    decl.print();
-                }
+                unit.0.print();
 
                 let mut translator = ASTTranslator::new();
                 let program = translator.translate(unit.0);

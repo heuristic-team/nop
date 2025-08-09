@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use super::{Pass, Res};
 
 use crate::Diagnostic;
-use crate::TypeAliasMap;
+use crate::TypeDeclMap;
 use crate::ast::*;
 use crate::lexer::Span;
 use crate::lexer::WithSpan;
@@ -15,10 +13,10 @@ use crate::typesystem::TypeDecl;
 pub struct TypeNameCorrectnessCheck {}
 
 /// Recursively check type alias usage validity, because type can be a struct description.
-fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeAliasMap, span: Span) {
+fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeDeclMap, span: Span) {
     match tp {
         Type::Alias(name) => {
-            if !type_alias_map.contains_key(name) {
+            if !type_alias_map.contains(name) {
                 diags.push(Diagnostic::new(
                     format!("use of undefined type {}", name),
                     span,
@@ -32,7 +30,7 @@ fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeAliasMa
         // cannot be written explicitly yet
         Type::Function { .. } => unreachable!(),
 
-        Type::Struct(fields) => fields
+        Type::Struct { fields, .. } => fields
             .iter()
             .for_each(|t| check_tp(diags, &t.tp.value, type_alias_map, t.tp.span)),
     }
@@ -40,7 +38,7 @@ fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeAliasMa
 
 fn check_typename_usage_in_expr(
     diags: &mut Vec<Diagnostic>,
-    type_alias_map: &TypeAliasMap,
+    type_alias_map: &TypeDeclMap,
     expr: &Expr,
 ) {
     match expr {
@@ -55,13 +53,14 @@ fn check_typename_usage_in_expr(
         | Expr::Bool { .. }
         | Expr::Ref { .. }
         | Expr::Call { .. }
+        | Expr::MemberRef { .. }
         | Expr::Binary { .. } => {}
     }
 }
 
 fn check_typename_usage_in_decl(
     diags: &mut Vec<Diagnostic>,
-    type_alias_map: &TypeAliasMap,
+    type_alias_map: &TypeDeclMap,
     decl: &FnDecl,
 ) {
     decl.params
@@ -77,10 +76,10 @@ fn check_typename_usage_in_decl(
 
 impl Pass for TypeNameCorrectnessCheck {
     type Input = (Vec<FnDecl>, Vec<TypeDecl>);
-    type Output = (Vec<FnDecl>, TypeAliasMap);
+    type Output = (Vec<FnDecl>, TypeDeclMap);
 
     fn run(&mut self, (fn_decls, type_decls): Self::Input) -> Res<Self::Output> {
-        let mut type_alias_map: TypeAliasMap = HashMap::new();
+        let mut type_alias_map = TypeDeclMap::new();
         let mut diags = Vec::new();
 
         for decl in type_decls.into_iter() {
@@ -95,7 +94,7 @@ impl Pass for TypeNameCorrectnessCheck {
                 continue;
             }
 
-            let prev = type_alias_map.get(&decl.name.value);
+            let prev = type_alias_map.get_decl(&decl.name.value);
 
             if let Some(prev) = prev {
                 let note = WithSpan::new("previously declared here".to_string(), prev.name.span);
@@ -104,10 +103,10 @@ impl Pass for TypeNameCorrectnessCheck {
                 continue;
             }
 
-            type_alias_map.insert(decl.name.value.clone(), decl);
+            type_alias_map.insert_decl(decl);
         }
 
-        for decl in type_alias_map.values() {
+        for decl in type_alias_map.decls() {
             check_tp(
                 &mut diags,
                 &decl.value.value,

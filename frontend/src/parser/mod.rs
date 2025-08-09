@@ -67,17 +67,20 @@ impl Parser {
             let WithSpan { value: token, span } = self.lexemes.peek();
             match token {
                 Token::Fn => fn_decls.push(self.parse_fn_decl()?),
-                Token::Type => type_decls.push(self.parse_type_decl()?),
+                Token::Type | Token::Struct => type_decls.push(self.parse_type_decl()?),
                 t => {
                     return Err(ParseError::new(
-                        expected!(Token::Fn, Token::Type),
+                        expected!(Token::Fn, Token::Type, Token::Struct),
                         t.to_string(),
                         span,
                     ));
                 }
             }
 
-            self.get(token!(Token::EOL, Token::EOF), expected!(Token::EOL, Token::EOF))?;
+            self.get(
+                token!(Token::EOL, Token::EOF),
+                expected!(Token::EOL, Token::EOF),
+            )?;
             self.eat_while(token!(Token::EOL));
         }
 
@@ -143,12 +146,18 @@ impl Parser {
         self.get_map(token!(Token::Id(id) => id), expected!("identifier"))
     }
 
-    /// Parse struct type description (`struct { ... }`).
+    /// Parse struct type declaration (`struct NAME { FIELDS }`).
     ///
     /// Expects the first token to be `struct`.
-    fn parse_struct_type(&mut self) -> Res<Type> {
-        self.get(token!(Token::Struct), expected!(Token::Struct))?;
+    fn parse_struct_type_decl(&mut self) -> Res<TypeDecl> {
+        let kw_span = self
+            .get(token!(Token::Struct), expected!(Token::Struct))?
+            .span;
         self.eat_while(token!(Token::EOL));
+
+        let name = self.parse_id()?;
+        self.eat_while(token!(Token::EOL));
+
         self.get(token!(Token::LBrace), expected!(Token::LBrace))?;
 
         let mut fields = vec![];
@@ -162,7 +171,7 @@ impl Parser {
             self.get(token!(Token::Colon), expected!(Token::Colon))?;
             self.eat_while(token!(Token::EOL));
 
-            let tp = self.parse_type()?;
+            let tp = self.parse_type_reference()?;
             self.eat_while(token!(Token::EOL));
 
             fields.push(Field {
@@ -186,44 +195,66 @@ impl Parser {
             }
         }
 
-        self.get(token!(Token::RBrace), expected!(Token::RBrace))?;
-        Ok(Type::Struct(fields))
+        let rbrace_span = self
+            .get(token!(Token::RBrace), expected!(Token::RBrace))?
+            .span;
+
+        let value = WithSpan::new(
+            Rc::new(Type::Struct {
+                name: name.clone(),
+                fields,
+            }),
+            Span::new(kw_span.start, rbrace_span.end),
+        );
+
+        Ok(TypeDecl { name, value })
     }
 
-    /// Parse type. This can be a primitive type or type alias, or a struct type.
+    /// Parse type. This can be a primitive type or type alias reference.
     ///
-    /// Expects the first token to be an identifier or `struct`.
-    fn parse_type(&mut self) -> Res<WithSpan<Type>> {
-        let WithSpan { value: token, span } = self.lexemes.peek();
+    /// Expects the first token to be an identifier.
+    fn parse_type_reference(&mut self) -> Res<WithSpan<Type>> {
+        let WithSpan { value: id, span } = self
+            .parse_id()
+            .map_err(|err| err.expect(expected!("type")))?;
 
-        let tp = match token {
-            Token::Id(id) => {
-                self.lexemes.next();
-                Type::primitive_from_str(&id).unwrap_or(Type::Alias(id))
-            }
-            Token::Struct => self.parse_struct_type()?,
-            t => return Err(ParseError::new(expected!("type"), t.to_string(), span)),
-        };
+        let tp = Type::primitive_from_str(&id).unwrap_or(Type::Alias(id));
 
         Ok(WithSpan::new(tp, span))
     }
 
-    /// Parse type declaration (`type = ...`).
+    /// Parse type alias declaration (`type NAME = TYPE`).
     ///
     /// Expects the first token to be `type`.
-    fn parse_type_decl(&mut self) -> Res<TypeDecl> {
+    fn parse_type_alias_decl(&mut self) -> Res<TypeDecl> {
         self.get(token!(Token::Type), expected!(Token::Type))?;
 
         let name = self.parse_id()?;
 
         self.get(token!(Token::Assign), expected!(Token::Assign))?;
 
-        let value = self.parse_type()?;
+        let value = self.parse_type_reference()?;
 
         Ok(TypeDecl {
             name,
             value: value.map(Rc::new),
         })
+    }
+
+    /// Parse type declaration (struct declaration or type alias declaration).
+    ///
+    /// Expects the first token to be `type` or `struct`.
+    fn parse_type_decl(&mut self) -> Res<TypeDecl> {
+        let WithSpan { value: token, span } = self.lexemes.peek();
+        match token {
+            Token::Type => self.parse_type_alias_decl(),
+            Token::Struct => self.parse_struct_type_decl(),
+            t => Err(ParseError::new(
+                expected!("type declaration"),
+                t.to_string(),
+                span,
+            )),
+        }
     }
 
     /// Parse function declaration (name, parameters, return type and body).
@@ -240,7 +271,7 @@ impl Parser {
             span: tp_span,
         } = self.lexemes.peek();
         let tp = if let Token::Id(_) = tp_token {
-            self.parse_type()?
+            self.parse_type_reference()?
         } else {
             WithSpan::new(Type::Unit, tp_span)
         };
@@ -280,7 +311,7 @@ impl Parser {
             self.get(token!(Token::Colon), expected!(Token::Colon))?;
             self.eat_while(token!(Token::EOL));
 
-            let tp = self.parse_type()?;
+            let tp = self.parse_type_reference()?;
             self.eat_while(token!(Token::EOL));
 
             res.push(FnParam {
@@ -354,7 +385,7 @@ impl Parser {
         let tp = match token {
             Token::Colon => {
                 self.lexemes.next(); // eat `:`
-                let tp = self.parse_type()?;
+                let tp = self.parse_type_reference()?;
                 self.get(token!(Token::Assign), expected!(Token::Assign))?;
                 tp
             }
@@ -386,7 +417,7 @@ impl Parser {
     }
 
     /// Parse term. Term can be:
-    /// 
+    ///
     /// - an expression in parentheses
     /// - a block
     /// - a conditional expression
@@ -432,10 +463,20 @@ impl Parser {
             t => Err(ParseError::new(expected!("term"), t.to_string(), span)),
         }?;
 
-        if let Token::LParen = self.lexemes.peek().value {
-            self.parse_call_expr(term)
-        } else {
-            Ok(term)
+        self.parse_postfix_operators(term)
+    }
+
+    /// Parse postfix operators like member reference and call.
+    ///
+    /// Expects the first token to be anything.
+    /// If it is not `.` or `(`, simply returns passed expression unmodified.
+    fn parse_postfix_operators(&mut self, mut expr: Expr) -> Res<Expr> {
+        loop {
+            expr = match self.lexemes.peek().value {
+                Token::LParen => self.parse_call_expr(expr)?,
+                Token::Dot => self.parse_member_ref_expr(expr)?,
+                _ => return Ok(expr),
+            }
         }
     }
 
@@ -483,6 +524,23 @@ impl Parser {
             callee: Box::new(callee),
             args,
             span,
+        })
+    }
+
+    /// Parse member reference **operator**. This means that the target is already parsed, for example:
+    ///
+    /// `foo.bar` - here target is `foo` and should already be parsed, thus the input to `parse_member_ref_expr` should be `.bar`.
+    ///
+    /// Expects the first token to be `.`.
+    fn parse_member_ref_expr(&mut self, target: Expr) -> Res<Expr> {
+        self.get(token!(Token::Dot), expected!(Token::Dot))?;
+
+        let name = self.parse_id()?;
+
+        Ok(Expr::MemberRef {
+            tp: Rc::new(Type::Undef),
+            target: Box::new(target),
+            member: name,
         })
     }
 

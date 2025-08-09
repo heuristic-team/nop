@@ -22,6 +22,12 @@ impl ParseError {
             span,
         }
     }
+
+    /// Replace `expected` with given list.
+    pub fn expect(mut self, expected: Vec<String>) -> Self {
+        self.expected = expected;
+        self
+    }
 }
 
 /// Create a prettified message from a list of expected items and the actual item.

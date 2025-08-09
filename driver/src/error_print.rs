@@ -102,7 +102,7 @@ fn print_msg(input: &Input, span: Span, msg: &str) {
 
         let (number, (b, _)) = line_boundaries
             .find(|&(_, (lb, le))| lb <= span.end && le >= span.start)
-            .expect("valid span");
+            .expect("expected valid span");
         (number + 1, span.start - b + 1)
     };
 

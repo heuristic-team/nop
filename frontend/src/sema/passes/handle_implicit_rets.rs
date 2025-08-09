@@ -74,6 +74,7 @@ fn set_all_returned_conditionals_to_expr_pos(e: &mut Expr) {
                 set_all_returned_conditionals_to_expr_pos(on_false);
             }
         }
+        Expr::MemberRef { target, .. } => set_all_returned_conditionals_to_expr_pos(target),
         Expr::Num { .. } | Expr::Bool { .. } | Expr::Ref { .. } | Expr::Call { .. } => {}
         Expr::Binary { lhs, rhs, .. } => {
             set_all_returned_conditionals_to_expr_pos(lhs);
@@ -95,7 +96,8 @@ fn find_implicit_ret_candidate(root: &mut Expr) -> &mut Expr {
         | Expr::Call { .. }
         | Expr::Binary { .. }
         | Expr::While { .. }
-        | Expr::If { .. } => root,
+        | Expr::If { .. }
+        | Expr::MemberRef { .. } => root,
         Expr::Block { body, .. } if body.is_empty() => root,
         Expr::Block { body, .. } => body.last_mut().map(find_implicit_ret_candidate).unwrap(),
     }

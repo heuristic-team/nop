@@ -22,7 +22,10 @@ pub enum Type {
         params: Vec<Rc<Type>>,
         rettype: Rc<Type>,
     },
-    Struct(Vec<Field>),
+    Struct {
+        name: WithSpan<String>,
+        fields: Vec<Field>,
+    },
     Alias(String),
     Undef,
 }
@@ -60,7 +63,7 @@ impl Display for Type {
             Type::I64 => write!(f, "i64"),
             Type::Bool => write!(f, "bool"),
             Type::Undef => write!(f, "?"),
-            Type::Alias(name) => write!(f, "alias `{}`", name),
+            Type::Alias(name) => write!(f, "{}", name),
             Type::Function { params, rettype } => {
                 write!(f, "fn (")?;
                 if let Some((last_param, init)) = params.split_last() {
@@ -71,15 +74,9 @@ impl Display for Type {
                 }
                 write!(f, ") -> {}", rettype)
             }
-            Type::Struct(fields) => {
-                write!(f, "struct {{")?;
-                if let Some((last, init)) = fields.split_last() {
-                    for field in init {
-                        write!(f, "{}: {}, ", field.name, field.tp.value)?;
-                    }
-                    write!(f, "{}: {}", last.name, last.tp.value)?;
-                }
-                write!(f, "}}")
+            Type::Struct { .. } => {
+                // this is odd, but valid, because we have no anonymous structs
+                unreachable!()
             }
         }
     }

@@ -183,7 +183,7 @@ impl ASTTranslator {
                 self.translate_binary(func, defs, op.value, lhs, rhs)
             }
             Expr::Block { body, .. } => self.translate_block(func, defs, body),
-            Expr::While { .. } | Expr::If { .. } => todo!(),
+            Expr::MemberRef { .. } | Expr::While { .. } | Expr::If { .. } => todo!(),
         }
     }
 
@@ -226,7 +226,10 @@ impl Translator<AST> for ASTTranslator {
             .map(|(name, func)| {
                 (
                     name.clone(),
-                    Rc::new(Var::new(func.name.value.clone(), func.return_type.value.clone())),
+                    Rc::new(Var::new(
+                        func.name.value.clone(),
+                        func.return_type.value.clone(),
+                    )),
                 )
             })
             .collect();

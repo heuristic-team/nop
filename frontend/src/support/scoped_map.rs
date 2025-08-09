@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::hash::Hash;
 
 /// A stack of `HashMap`s, useful for collecting some scoped information with shadowing, like variable types.
@@ -126,5 +127,21 @@ where
         Q: Hash + Eq + ?Sized,
     {
         self.repr.iter().any(|m| m.contains_key(k))
+    }
+}
+
+impl<K: Debug, V: Debug> Debug for ScopedMap<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for (i, scope) in self.repr.iter().enumerate() {
+            if !first {
+                write!(f, "\n")?;
+            }
+
+            write!(f, "{}: {:?}", i, scope)?;
+            first = false;
+        }
+
+        Ok(())
     }
 }
