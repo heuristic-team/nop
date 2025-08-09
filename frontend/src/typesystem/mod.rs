@@ -22,7 +22,10 @@ pub enum Type {
         params: Vec<Rc<Type>>,
         rettype: Rc<Type>,
     },
-    Struct(Vec<Field>),
+    Struct {
+        name: WithSpan<String>,
+        fields: Vec<Field>,
+    },
     Alias(String),
     Undef,
 }
@@ -71,8 +74,8 @@ impl Display for Type {
                 }
                 write!(f, ") -> {}", rettype)
             }
-            Type::Struct(fields) => {
-                write!(f, "struct {{")?;
+            Type::Struct{name, fields} => {
+                write!(f, "struct {} {{", name.value)?;
                 if let Some((last, init)) = fields.split_last() {
                     for field in init {
                         write!(f, "{}: {}, ", field.name, field.tp.value)?;

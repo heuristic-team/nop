@@ -32,7 +32,7 @@ fn check_tp(diags: &mut Vec<Diagnostic>, tp: &Type, type_alias_map: &TypeAliasMa
         // cannot be written explicitly yet
         Type::Function { .. } => unreachable!(),
 
-        Type::Struct(fields) => fields
+        Type::Struct { fields, .. } => fields
             .iter()
             .for_each(|t| check_tp(diags, &t.tp.value, type_alias_map, t.tp.span)),
     }

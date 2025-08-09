@@ -293,7 +293,7 @@ impl<'a> TypingImpl<'a> {
     fn get_member_type(&self, target: &Expr, member: &str) -> Option<Rc<Type>> {
         match self.unalias_type(target.tp()) {
             Type::Bottom => Some(Rc::new(Type::Bottom)),
-            Type::Struct(fields) => fields
+            Type::Struct { fields, .. } => fields
                 .iter()
                 .find(|field| field.name == member)
                 .map(|field| field.tp.value.clone()),
