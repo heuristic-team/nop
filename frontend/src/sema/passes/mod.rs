@@ -12,5 +12,11 @@ pub use name_correctness_check::NameCorrectnessCheck;
 mod assignment_correctness_check;
 pub use assignment_correctness_check::AssignmentCorrectnessCheck;
 
+mod unalias_struct_types;
+pub use unalias_struct_types::UnaliasStructTypes;
+
+mod type_alias_loop_check;
+pub use type_alias_loop_check::TypeAliasLoopCheck;
+
 mod typing;
 pub use typing::Typing;

@@ -74,10 +74,7 @@ impl Display for Type {
                 }
                 write!(f, ") -> {}", rettype)
             }
-            Type::Struct { .. } => {
-                // this is odd, but valid, because we have no anonymous structs
-                unreachable!()
-            }
+            Type::Struct { name, .. } => write!(f, "{}", name.value),
         }
     }
 }

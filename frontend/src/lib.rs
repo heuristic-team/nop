@@ -5,7 +5,7 @@ pub mod parser;
 pub mod print;
 pub mod sema;
 pub mod support;
-mod translation_unit;
+pub mod translation_unit;
 pub mod typesystem;
 
 pub use diagnostic::Diagnostic;

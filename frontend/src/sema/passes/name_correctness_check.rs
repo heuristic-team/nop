@@ -6,7 +6,6 @@ use crate::TranslationUnit;
 use crate::TypeDeclMap;
 use crate::ast::*;
 use crate::lexer::WithSpan;
-use crate::print::PrettyPrintable;
 use crate::support::ScopedSet;
 
 /// Pass ther checks that all references to named values (variables, parameters, functions) are valid.
@@ -17,7 +16,6 @@ type Names<'a> = ScopedSet<&'a str>;
 fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>, expr: &'a Expr) {
     match expr {
         Expr::Ref { name, .. } => {
-            eprintln!("ctx on check of ref to {}:\n{:?}", name.value, ctx);
             if !ctx.contains(name.value.as_str()) {
                 diags.push(Diagnostic::new(
                     format!("reference to undefined name {}", name.value),
