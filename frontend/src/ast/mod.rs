@@ -5,8 +5,6 @@ use std::rc::Rc;
 use crate::lexer::{Span, WithSpan};
 use crate::typesystem::*;
 
-pub mod print;
-
 pub type AST = HashMap<String, FnDecl>;
 
 /// Function parameter description.

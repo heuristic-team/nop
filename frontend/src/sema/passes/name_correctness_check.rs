@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use super::{Pass, Res};
 use crate::Diagnostic;
 use crate::TranslationUnit;
-use crate::TypeAliasMap;
+use crate::TypeDeclMap;
 use crate::ast::*;
 use crate::lexer::WithSpan;
+use crate::print::PrettyPrintable;
 use crate::support::ScopedSet;
 
 /// Pass ther checks that all references to named values (variables, parameters, functions) are valid.
@@ -15,13 +16,16 @@ type Names<'a> = ScopedSet<&'a str>;
 
 fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>, expr: &'a Expr) {
     match expr {
-        Expr::Ref { name, .. } if !ctx.contains(name.value.as_str()) => {
-            diags.push(Diagnostic::new(
-                format!("reference to undefined name {}", name.value),
-                name.span,
-            ));
+        Expr::Ref { name, .. } => {
+            eprintln!("ctx on check of ref to {}:\n{:?}", name.value, ctx);
+            if !ctx.contains(name.value.as_str()) {
+                diags.push(Diagnostic::new(
+                    format!("reference to undefined name {}", name.value),
+                    name.span,
+                ));
+            }
         }
-        Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
+        Expr::Num { .. } | Expr::Bool { .. } => {}
         Expr::While { cond, body, .. } => {
             check_references_in_expr(diags, ctx, cond);
             check_references_in_expr(diags, ctx, body);
@@ -38,7 +42,7 @@ fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>
                 check_references_in_expr(diags, ctx, on_false);
             }
         }
-        
+
         // sadly we cannot check validity of field reference here,
         // because expression type is unknown at this point
         Expr::MemberRef { target, .. } => check_references_in_expr(diags, ctx, target),
@@ -53,7 +57,8 @@ fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>
             check_references_in_expr(diags, ctx, lhs);
             check_references_in_expr(diags, ctx, rhs);
         }
-        Expr::Declare { name, .. } => {
+        Expr::Declare { name, value, .. } => {
+            check_references_in_expr(diags, ctx, value);
             ctx.insert(&name.value);
         }
         Expr::Block { body, .. } => {
@@ -87,7 +92,7 @@ fn check_references_in_decl<'a>(
 }
 
 impl Pass for NameCorrectnessCheck {
-    type Input = (Vec<FnDecl>, TypeAliasMap);
+    type Input = (Vec<FnDecl>, TypeDeclMap);
     type Output = TranslationUnit;
 
     fn run(&mut self, (decls, typemap): Self::Input) -> Res<Self::Output> {

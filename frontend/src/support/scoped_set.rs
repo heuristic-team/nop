@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::collections::HashSet;
+use std::fmt::Debug;
 use std::hash::Hash;
 
 /// A stack of `HashSet`s, useful for checking names in nested scopes.
@@ -80,5 +81,21 @@ where
         Q: Hash + Eq + ?Sized,
     {
         self.repr.iter().any(|m| m.contains(x))
+    }
+}
+
+impl<T: Debug> Debug for ScopedSet<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for (i, scope) in self.repr.iter().enumerate() {
+            if !first {
+                write!(f, "\n")?;
+            }
+
+            write!(f, "{}: {:?}", i, scope)?;
+            first = false;
+        }
+
+        Ok(())
     }
 }

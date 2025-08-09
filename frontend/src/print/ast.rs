@@ -1,34 +1,44 @@
-use crate::ast::*;
+use crate::print::{PrettyPrintable, make_offset};
 
-impl FnDecl {
-    fn print_param(param: &FnParam) {
-        print!(
-            "{}{}: {}",
-            fmt_mut(param.is_mut),
-            param.name.value,
-            param.tp.value
-        );
+use crate::ast::{AST, Expr, FnDecl, FnParam};
+
+impl PrettyPrintable for AST {
+    fn print_with_depth(&self, depth: u8) {
+        for decl in self.values() {
+            decl.print_with_depth(depth);
+        }
     }
+}
 
-    pub fn print(&self) {
+fn print_param(param: &FnParam) {
+    print!(
+        "{}{}: {}",
+        fmt_mut(param.is_mut),
+        param.name.value,
+        param.tp.value
+    );
+}
+
+impl PrettyPrintable for FnDecl {
+    fn print_with_depth(&self, depth: u8) {
         print!("fn {}(", self.name.value);
 
         if let Some((last_param, init)) = self.params.split_last() {
             init.iter().for_each(|param| {
-                Self::print_param(param);
+                print_param(param);
                 print!(", ");
             });
-            Self::print_param(last_param);
+            print_param(last_param);
         }
 
         println!(") {} =", self.return_type.value);
 
-        self.body.print(1);
+        self.body.print_with_depth(depth + 1);
     }
 }
 
-impl Expr {
-    pub fn print(&self, depth: u8) {
+impl PrettyPrintable for Expr {
+    fn print_with_depth(&self, depth: u8) {
         make_offset(depth);
         match self {
             Expr::Declare {
@@ -38,14 +48,14 @@ impl Expr {
                 value,
             } => {
                 println!("Declare {}{} {} =", fmt_mut(*is_mut), name.value, tp.value);
-                value.print(depth + 1);
+                value.print_with_depth(depth + 1);
             }
             Expr::While { cond, body, .. } => {
                 println!("While");
-                cond.print(depth + 1);
+                cond.print_with_depth(depth + 1);
                 make_offset(depth);
                 println!("do");
-                body.print(depth + 1);
+                body.print_with_depth(depth + 1);
             }
             Expr::If {
                 tp,
@@ -55,59 +65,53 @@ impl Expr {
                 ..
             } => {
                 println!("If {}", tp);
-                cond.print(depth + 1);
+                cond.print_with_depth(depth + 1);
                 make_offset(depth);
                 println!("then");
-                on_true.print(depth + 1);
+                on_true.print_with_depth(depth + 1);
 
                 if let Some(on_false) = on_false {
                     make_offset(depth);
                     println!("else");
-                    on_false.print(depth + 1);
+                    on_false.print_with_depth(depth + 1);
                 }
             }
             Expr::Num { tp, value } => println!("Num {} {}", value.value, tp),
             Expr::Ref { tp, name } => println!("Ref {} {}", name.value, tp),
             Expr::MemberRef { tp, target, member } => {
                 println!("MemberRef {} {}", member.value, tp);
-                target.print(depth + 1);
+                target.print_with_depth(depth + 1);
             }
             Expr::Call {
                 tp, callee, args, ..
             } => {
                 println!("Call {tp}");
-                callee.print(depth + 1);
+                callee.print_with_depth(depth + 1);
                 make_offset(depth);
                 println!("with args");
                 for arg in args {
-                    arg.print(depth + 1)
+                    arg.print_with_depth(depth + 1)
                 }
             }
             Expr::Binary { tp, op, lhs, rhs } => {
                 println!("Binary {} {}", op.value, tp);
-                lhs.print(depth + 1);
-                rhs.print(depth + 1);
+                lhs.print_with_depth(depth + 1);
+                rhs.print_with_depth(depth + 1);
             }
             Expr::Block { body, tp, .. } => {
                 println!("Block {} {{", tp);
-                body.iter().for_each(|e| e.print(depth + 1));
+                body.iter().for_each(|e| e.print_with_depth(depth + 1));
                 make_offset(depth);
                 println!("}}");
             }
             Expr::Ret { value, .. } => {
                 println!("Ret");
                 if let Some(e) = value {
-                    e.print(depth + 1);
+                    e.print_with_depth(depth + 1);
                 }
             }
             Expr::Bool { value, .. } => println!("Bool {value}"),
         }
-    }
-}
-
-fn make_offset(depth: u8) {
-    for _ in 0..depth {
-        print!("  ");
     }
 }
 

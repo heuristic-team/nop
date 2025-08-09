@@ -8,7 +8,7 @@ use crate::ast::*;
 use crate::lexer::{Span, WithSpan};
 use crate::support::ScopedMap;
 use crate::typesystem::Type;
-use crate::{Diagnostic, TypeAliasMap};
+use crate::{Diagnostic, TypeDeclMap};
 
 type DeclTypeMap = ScopedMap<String, Rc<Type>>;
 
@@ -20,7 +20,7 @@ pub struct Typing {}
 struct TypingImpl<'a> {
     pub diags: Vec<Diagnostic>,
     typemap: DeclTypeMap,
-    alias_map: &'a TypeAliasMap,
+    alias_map: &'a TypeDeclMap,
 }
 
 impl<'a> TypingImpl<'a> {
@@ -43,7 +43,7 @@ impl<'a> TypingImpl<'a> {
     fn check_ret_type(&mut self, decl: &FnDecl) {
         let check_ret = |value: Option<&Expr>, span: Span| -> Option<Diagnostic> {
             let tp = value.map(|e| e.tp()).unwrap_or(&Type::Unit);
-            if !match_types(tp, &decl.return_type.value) {
+            if !match_types(self.alias_map, tp, &decl.return_type.value) {
                 let msg = format!(
                     "return type mismatch: expected {}, but got {}",
                     decl.return_type.value, tp
@@ -88,7 +88,7 @@ impl<'a> TypingImpl<'a> {
                 *tp = self
                     .typemap
                     .get(&name.value)
-                    .expect("valid reference")
+                    .expect("expected valid reference")
                     .clone();
             }
             Expr::MemberRef { tp, target, member } => {
@@ -122,7 +122,7 @@ impl<'a> TypingImpl<'a> {
                     self.type_expr(on_false);
                 }
 
-                if !match_types(cond.tp(), &Type::Bool) {
+                if !match_types(self.alias_map, cond.tp(), &Type::Bool) {
                     self.diags.push(Diagnostic::new(
                         format!(
                             "invalid type for condition: expected {}, but got {}",
@@ -140,23 +140,24 @@ impl<'a> TypingImpl<'a> {
                 } else {
                     if let Some(on_false) = on_false {
                         // in expression position, check that both `then` and `else` branches have the same type
-                        *tp = merge_types(on_true.tp_rc(), on_false.tp_rc()).unwrap_or_else(|| {
-                            let then_note = WithSpan::new(
-                                format!("`then` is {}", on_true.tp()),
-                                on_true.span(),
-                            );
-                            let else_note = WithSpan::new(
-                                format!("`else` is {}", on_false.tp()),
-                                on_false.span(),
-                            );
-                            self.diags.push(Diagnostic::new_with_notes(
-                                "branches types mismatch".to_string(),
-                                *kw_span,
-                                vec![then_note, else_note],
-                            ));
+                        *tp = merge_types(self.alias_map, on_true.tp_rc(), on_false.tp_rc())
+                            .unwrap_or_else(|| {
+                                let then_note = WithSpan::new(
+                                    format!("`then` is {}", on_true.tp()),
+                                    on_true.span(),
+                                );
+                                let else_note = WithSpan::new(
+                                    format!("`else` is {}", on_false.tp()),
+                                    on_false.span(),
+                                );
+                                self.diags.push(Diagnostic::new_with_notes(
+                                    "branches types mismatch".to_string(),
+                                    *kw_span,
+                                    vec![then_note, else_note],
+                                ));
 
-                            Rc::new(Type::Bottom)
-                        })
+                                Rc::new(Type::Bottom)
+                            })
                     } else {
                         // otherwise if `else` branch is not present in expression position,
                         // conditional expression is invaid
@@ -173,7 +174,7 @@ impl<'a> TypingImpl<'a> {
                 self.type_expr(cond);
                 self.type_expr(body);
 
-                if !match_types(cond.tp(), &Type::Bool) {
+                if !match_types(self.alias_map, cond.tp(), &Type::Bool) {
                     self.diags.push(Diagnostic::new(
                         format!(
                             "invalid type for while loop condition: expected {}, but got {}",
@@ -220,12 +221,12 @@ impl<'a> TypingImpl<'a> {
                 };
 
                 *tp = if op.value.is_cmp() {
-                    if !match_types(lhs.tp(), rhs.tp()) {
+                    if !match_types(self.alias_map, lhs.tp(), rhs.tp()) {
                         report_incompatible_types();
                     }
                     Rc::new(Type::Bool)
                 } else {
-                    merge_types(lhs.tp_rc(), rhs.tp_rc()).unwrap_or_else(|| {
+                    merge_types(self.alias_map, lhs.tp_rc(), rhs.tp_rc()).unwrap_or_else(|| {
                         report_incompatible_types();
                         Rc::new(Type::Bottom)
                     })
@@ -234,6 +235,9 @@ impl<'a> TypingImpl<'a> {
             Expr::Declare {
                 tp, value, name, ..
             } => {
+                eprintln!("on decl of {}", name.value);
+                eprintln!("{:?}", self.typemap);
+                    
                 if let Type::Undef = *tp.value {
                     self.type_expr(value);
                     tp.value = value.tp_rc().clone();
@@ -241,7 +245,7 @@ impl<'a> TypingImpl<'a> {
                     self.propagate_type(value, tp.value.clone());
                     self.type_expr(value);
 
-                    if !match_types(value.tp(), &tp.value) {
+                    if !match_types(self.alias_map, value.tp(), &tp.value) {
                         let msg = format!(
                             "initializer type mismatch: expected {}, but got {}",
                             tp.value,
@@ -276,22 +280,8 @@ impl<'a> TypingImpl<'a> {
         }
     }
 
-    /// Unwrap any nested type aliases until we get a concrete type.
-    fn unalias_type<'b>(&'b self, tp: &'b Type) -> &'b Type {
-        let mut cur = tp;
-        while let Type::Alias(name) = cur {
-            let typedecl = self
-                .alias_map
-                .get(name)
-                .expect("expected valid alias, check `TypeNameCorrectnessCheck` pass");
-
-            cur = typedecl.value.value.as_ref();
-        }
-        cur
-    }
-
     fn get_member_type(&self, target: &Expr, member: &str) -> Option<Rc<Type>> {
-        match self.unalias_type(target.tp()) {
+        match self.alias_map.unalias_type(target.tp()) {
             Type::Bottom => Some(Rc::new(Type::Bottom)),
             Type::Struct { fields, .. } => fields
                 .iter()
@@ -375,7 +365,7 @@ impl<'a> TypingImpl<'a> {
         params
             .iter()
             .zip(args)
-            .filter(|(param, arg)| !match_types(arg.tp(), param.as_ref()))
+            .filter(|(param, arg)| !match_types(self.alias_map, arg.tp(), param.as_ref()))
             .map(|(param, arg)| {
                 Diagnostic::new(
                     format!(
@@ -391,8 +381,8 @@ impl<'a> TypingImpl<'a> {
 }
 
 /// Check that types are "compatible". That means that either `lhs` or `rhs` should be a subtype of second one.
-fn match_types(lhs: &Type, rhs: &Type) -> bool {
-    match (lhs, rhs) {
+fn match_types(alias_map: &TypeDeclMap, lhs: &Type, rhs: &Type) -> bool {
+    match (alias_map.unalias_type(lhs), alias_map.unalias_type(rhs)) {
         (Type::Bottom, _) | (_, Type::Bottom) => true,
         (a, b) if a == b => true,
         _ => false,
@@ -400,7 +390,9 @@ fn match_types(lhs: &Type, rhs: &Type) -> bool {
 }
 
 /// Find the common supertype between `lhs` and `rhs` if possible.
-fn merge_types<'a>(lhs: Rc<Type>, rhs: Rc<Type>) -> Option<Rc<Type>> {
+fn merge_types(alias_map: &TypeDeclMap, lhs: Rc<Type>, rhs: Rc<Type>) -> Option<Rc<Type>> {
+    let lhs = alias_map.unalias_type_rc(lhs);
+    let rhs = alias_map.unalias_type_rc(rhs);
     match (lhs.as_ref(), rhs.as_ref()) {
         (Type::Bottom, _) => Some(rhs),
         (_, Type::Bottom) => Some(lhs),

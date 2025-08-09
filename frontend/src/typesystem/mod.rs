@@ -74,15 +74,9 @@ impl Display for Type {
                 }
                 write!(f, ") -> {}", rettype)
             }
-            Type::Struct{name, fields} => {
-                write!(f, "struct {} {{", name.value)?;
-                if let Some((last, init)) = fields.split_last() {
-                    for field in init {
-                        write!(f, "{}: {}, ", field.name, field.tp.value)?;
-                    }
-                    write!(f, "{}: {}", last.name, last.tp.value)?;
-                }
-                write!(f, "}}")
+            Type::Struct { .. } => {
+                // this is odd, but valid, because we have no anonymous structs
+                unreachable!()
             }
         }
     }
