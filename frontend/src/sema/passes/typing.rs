@@ -193,6 +193,11 @@ fn type_expr(diags: &mut Vec<Diagnostic>, typemap: &mut Ctx, expr: &mut Expr) {
                     report_incompatible_types();
                 }
                 Rc::new(Type::Bool)
+            } else if op.value.is_logical() {
+                if !(match_types(lhs.tp(), &Type::Bool) && match_types(rhs.tp(), &Type::Bool)) {
+                    report_incompatible_types();
+                }
+                Rc::new(Type::Bool)
             } else {
                 merge_types(lhs.tp_rc(), rhs.tp_rc()).unwrap_or_else(|| {
                     report_incompatible_types();
@@ -285,8 +290,8 @@ fn propagate_type(diags: &mut Vec<Diagnostic>, expr: &mut Expr, propagated: Rc<T
         // these types should always be set in `type_expr` by lookup
         Expr::Ref { .. } | Expr::Call { .. } => {}
 
-        Expr::Binary { op, .. } if op.value.is_cmp() => {} // always bool
-        Expr::Bool { .. } => {}                            // always bool
+        Expr::Binary { op, .. } if op.value.is_cmp() || op.value.is_logical() => {} // always bool
+        Expr::Bool { .. } => {}                                                     // always bool
 
         Expr::Binary { tp, lhs, rhs, .. } => {
             *tp = propagated.clone();

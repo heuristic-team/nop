@@ -157,6 +157,7 @@ impl ASTTranslator {
                 func.add_to_current_block(sub);
                 dest
             }
+            _ => todo!(), // Implement logical and comparison BinaryOp
         }
     }
 
@@ -226,7 +227,10 @@ impl Translator<AST> for ASTTranslator {
             .map(|(name, func)| {
                 (
                     name.clone(),
-                    Rc::new(Var::new(func.name.value.clone(), func.return_type.value.clone())),
+                    Rc::new(Var::new(
+                        func.name.value.clone(),
+                        func.return_type.value.clone(),
+                    )),
                 )
             })
             .collect();

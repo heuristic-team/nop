@@ -77,7 +77,10 @@ impl Parser {
                 }
             }
 
-            self.get(token!(Token::EOL, Token::EOF), expected!(Token::EOL, Token::EOF))?;
+            self.get(
+                token!(Token::EOL, Token::EOF),
+                expected!(Token::EOL, Token::EOF),
+            )?;
             self.eat_while(token!(Token::EOL));
         }
 
@@ -386,7 +389,7 @@ impl Parser {
     }
 
     /// Parse term. Term can be:
-    /// 
+    ///
     /// - an expression in parentheses
     /// - a block
     /// - a conditional expression
@@ -635,6 +638,14 @@ fn bin_op_from_token(token: &Token) -> Option<BinaryOp> {
         Token::Minus => Some(BinaryOp::Minus),
         Token::Mul => Some(BinaryOp::Mul),
         Token::Assign => Some(BinaryOp::Assign),
+        Token::Eq => Some(BinaryOp::Eq),
+        Token::NotEq => Some(BinaryOp::NotEq),
+        Token::Less => Some(BinaryOp::Less),
+        Token::LessEq => Some(BinaryOp::LessEq),
+        Token::Greater => Some(BinaryOp::Greater),
+        Token::GreaterEq => Some(BinaryOp::GreaterEq),
+        Token::And => Some(BinaryOp::And),
+        Token::Or => Some(BinaryOp::Or),
         _ => None,
     }
 }
