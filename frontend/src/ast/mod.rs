@@ -57,6 +57,10 @@ pub enum BinaryOp {
     Plus,
     Minus,
     Mul,
+    Eq,
+    NotEq,
+    And,
+    Or,
 }
 
 impl BinaryOp {
@@ -67,22 +71,33 @@ impl BinaryOp {
             Self::Plus => 4,
             Self::Minus => 4,
             Self::Mul => 5,
+            Self::Eq => 6,
+            Self::NotEq => 6,
+            Self::And => 6,
+            Self::Or => 6,
         }
     }
 
     /// Binary operator associativity for parsing.
     pub fn assoc(&self) -> Associativity {
         match self {
-            BinaryOp::Assign => Associativity::Right,
-            BinaryOp::Plus | BinaryOp::Minus | BinaryOp::Mul => Associativity::Left,
+            Self::Assign => Associativity::Right,
+            Self::Plus
+            | Self::Minus
+            | Self::Mul
+            | Self::Eq
+            | Self::NotEq
+            | Self::And
+            | Self::Or => Associativity::Left,
         }
     }
 
     /// Check if the operator is some form of comparison, meaning it will return `bool`, instead of `T`.
-    /// 
+    ///
     /// This may change when operators are handled as proper method calls.
     pub fn is_cmp(&self) -> bool {
         match self {
+            Self::Eq | Self::NotEq | Self::And | Self::Or => true,
             _ => false,
         }
     }
@@ -219,6 +234,10 @@ impl Display for BinaryOp {
             BinaryOp::Plus => write!(f, "+"),
             BinaryOp::Minus => write!(f, "-"),
             BinaryOp::Mul => write!(f, "*"),
+            BinaryOp::Eq => write!(f, "=="),
+            BinaryOp::NotEq => write!(f, "!="),
+            BinaryOp::And => write!(f, "&&"),
+            BinaryOp::Or => write!(f, "||"),
         }
     }
 }

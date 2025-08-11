@@ -120,7 +120,8 @@ impl Pass for AssignmentCorrectnessCheck {
     fn run(&mut self, (ast, typemap): Self::Input) -> Res<Self::Output> {
         let mut diags = vec![];
 
-        ast.values().for_each(|decl| check_decl_for_assignments(&mut diags, decl));
+        ast.values()
+            .for_each(|decl| check_decl_for_assignments(&mut diags, decl));
 
         if diags.is_empty() {
             Res::Ok((ast, typemap))

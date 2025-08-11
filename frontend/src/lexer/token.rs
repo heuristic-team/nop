@@ -8,6 +8,9 @@ pub enum Token {
     Assign, // `=`
     Define, // `:=`
     Eq,     // `==`
+    NotEq,  // `!=`
+    And,    // `&&`
+    Or,     // `||`
     Arrow,  // `->`
     Fn,     // `fn`
     Type,   // `type`
@@ -33,6 +36,9 @@ pub enum Token {
     Plus,   // `+`
     Minus,  // `-`
     Mul,    // `*`
+    Exclam, // `!`
+    Amper,  // `&`
+    Vbar,   // `|`    
 }
 
 impl Token {
@@ -45,6 +51,9 @@ impl Token {
             Token::Define => "`:=`",
             Token::Arrow => "`->`",
             Token::Eq => "`==`",
+            Token::NotEq => "`!=`",
+            Token::And => "`&&`",
+            Token::Or => "`||`",
             Token::Fn => "`fn`",
             Token::Type => "`type`",
             Token::Mut => "`mut`",
@@ -69,6 +78,9 @@ impl Token {
             Token::Plus => "`+`",
             Token::Minus => "`-`",
             Token::Mul => "`*`",
+            Token::Exclam => "`!`",
+            Token::Amper => "`&`",
+            Token::Vbar => "`|`",
         }
     }
 }
