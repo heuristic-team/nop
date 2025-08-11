@@ -40,12 +40,14 @@ const SYMBOLS: &[(char, Token)] = &[
 
 /// Pairs of symbols where the first is a prefix of the second, like `=` and `==`.
 const MULTIPLE_CHAR_SYMBOLS: &[(char, Token, &'static str, Token)] = &[
-    ('=', Token::Assign, "==", Token::Eq),
-    ('!', Token::Exclam, "!=", Token::NotEq),
-    ('&', Token::Amper, "&&", Token::And),
-    ('|', Token::Vbar, "||", Token::Or),
     (':', Token::Colon, ":=", Token::Define),
     ('-', Token::Minus, "->", Token::Arrow),
+    ('=', Token::Assign, "==", Token::Eq),
+    ('!', Token::Exclam, "!=", Token::NotEq),
+    ('<', Token::Less, "<=", Token::LessEq),
+    ('>', Token::Greater, ">=", Token::GreaterEq),
+    ('&', Token::Amper, "&&", Token::And),
+    ('|', Token::Vbar, "||", Token::Or),
 ];
 
 fn valid_id_start(ch: char) -> bool {

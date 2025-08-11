@@ -5,40 +5,44 @@ pub enum Token {
     EOF,
     Id(String),
     Num(u64),
-    Assign, // `=`
-    Define, // `:=`
-    Eq,     // `==`
-    NotEq,  // `!=`
-    And,    // `&&`
-    Or,     // `||`
-    Arrow,  // `->`
-    Fn,     // `fn`
-    Type,   // `type`
-    Mut,    // `mut`
-    Ret,    // `ret`
-    True,   // `true`
-    False,  // `false`
-    For,    // `for`
-    Do,     // `do`
-    If,     // `if`
-    Then,   // `then`
-    Else,   // `else`
-    Struct, // `struct`
-    EOL,
-    LParen, // `(`
-    RParen, // `)`
-    LBrace, // `{`
-    RBrace, // `}`
-    Quote,  // `"`
-    Dot,    // `.`
-    Comma,  // `,`
-    Colon,  // `:`
-    Plus,   // `+`
-    Minus,  // `-`
-    Mul,    // `*`
-    Exclam, // `!`
-    Amper,  // `&`
-    Vbar,   // `|`    
+    Assign,    // `=`
+    Define,    // `:=`
+    Eq,        // `==`
+    NotEq,     // `!=`
+    And,       // `&&`
+    Or,        // `||`
+    Less,      // `<`
+    LessEq,    // `<=`
+    Greater,   // `>`
+    GreaterEq, // `>=`
+    Arrow,     // `->`
+    Fn,        // `fn`
+    Type,      // `type`
+    Mut,       // `mut`
+    Ret,       // `ret`
+    True,      // `true`
+    False,     // `false`
+    For,       // `for`
+    Do,        // `do`
+    If,        // `if`
+    Then,      // `then`
+    Else,      // `else`
+    Struct,    // `struct`
+    EOL,       //
+    LParen,    // `(`
+    RParen,    // `)`
+    LBrace,    // `{`
+    RBrace,    // `}`
+    Quote,     // `"`
+    Dot,       // `.`
+    Comma,     // `,`
+    Colon,     // `:`
+    Plus,      // `+`
+    Minus,     // `-`
+    Mul,       // `*`
+    Exclam,    // `!`
+    Amper,     // `&`
+    Vbar,      // `|`
 }
 
 impl Token {
@@ -54,6 +58,10 @@ impl Token {
             Token::NotEq => "`!=`",
             Token::And => "`&&`",
             Token::Or => "`||`",
+            Token::Less => "`<`",
+            Token::LessEq => "`<=`",
+            Token::Greater => "`>`",
+            Token::GreaterEq => "`>=`",
             Token::Fn => "`fn`",
             Token::Type => "`type`",
             Token::Mut => "`mut`",

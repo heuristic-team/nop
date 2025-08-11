@@ -59,6 +59,10 @@ pub enum BinaryOp {
     Mul,
     Eq,
     NotEq,
+    Less,
+    LessEq,
+    Greater,
+    GreaterEq,
     And,
     Or,
 }
@@ -68,13 +72,12 @@ impl BinaryOp {
     pub fn prec(&self) -> Precedence {
         match self {
             Self::Assign => 1,
-            Self::Plus => 4,
-            Self::Minus => 4,
-            Self::Mul => 5,
-            Self::Eq => 6,
-            Self::NotEq => 6,
-            Self::And => 6,
-            Self::Or => 6,
+            Self::Or => 2,
+            Self::And => 3,
+            Self::Eq | Self::NotEq => 4,
+            Self::Less | Self::LessEq | Self::Greater | Self::GreaterEq => 5,
+            Self::Mul => 6,
+            Self::Plus | Self::Minus => 7,
         }
     }
 
@@ -87,6 +90,10 @@ impl BinaryOp {
             | Self::Mul
             | Self::Eq
             | Self::NotEq
+            | Self::Less
+            | Self::LessEq
+            | Self::Greater
+            | Self::GreaterEq
             | Self::And
             | Self::Or => Associativity::Left,
         }
@@ -97,7 +104,14 @@ impl BinaryOp {
     /// This may change when operators are handled as proper method calls.
     pub fn is_cmp(&self) -> bool {
         match self {
-            Self::Eq | Self::NotEq | Self::And | Self::Or => true,
+            Self::Eq
+            | Self::NotEq
+            | Self::Less
+            | Self::LessEq
+            | Self::Greater
+            | Self::GreaterEq
+            | Self::And
+            | Self::Or => true,
             _ => false,
         }
     }
@@ -230,14 +244,18 @@ impl Expr {
 impl Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BinaryOp::Assign => write!(f, "="),
-            BinaryOp::Plus => write!(f, "+"),
-            BinaryOp::Minus => write!(f, "-"),
-            BinaryOp::Mul => write!(f, "*"),
-            BinaryOp::Eq => write!(f, "=="),
-            BinaryOp::NotEq => write!(f, "!="),
-            BinaryOp::And => write!(f, "&&"),
-            BinaryOp::Or => write!(f, "||"),
+            Self::Assign => write!(f, "="),
+            Self::Plus => write!(f, "+"),
+            Self::Minus => write!(f, "-"),
+            Self::Mul => write!(f, "*"),
+            Self::Eq => write!(f, "=="),
+            Self::NotEq => write!(f, "!="),
+            Self::Less => write!(f, "<"),
+            Self::LessEq => write!(f, "<="),
+            Self::Greater => write!(f, ">"),
+            Self::GreaterEq => write!(f, ">="),
+            Self::And => write!(f, "&&"),
+            Self::Or => write!(f, "||"),
         }
     }
 }
