@@ -109,9 +109,14 @@ impl BinaryOp {
             | Self::Less
             | Self::LessEq
             | Self::Greater
-            | Self::GreaterEq
-            | Self::And
-            | Self::Or => true,
+            | Self::GreaterEq => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_logical(&self) -> bool {
+        match self {
+            Self::And | Self::Or => true,
             _ => false,
         }
     }
