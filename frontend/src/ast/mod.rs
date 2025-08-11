@@ -114,6 +114,7 @@ impl BinaryOp {
         }
     }
 
+    /// Check if the operator is logical, i.e. only applicable to bool arguments
     pub fn is_logical(&self) -> bool {
         match self {
             Self::And | Self::Or => true,
