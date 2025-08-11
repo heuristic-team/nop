@@ -137,37 +137,33 @@ impl<'a> TypingImpl<'a> {
                     // in statement position we do not care about the type of the conditional,
                     // its value is ignored either way
                     *tp = Rc::new(Type::Unit);
-                } else {
-                    if let Some(on_false) = on_false {
-                        // in expression position, check that both `then` and `else` branches have the same type
-                        *tp = merge_types(self.type_decl_map, on_true.tp_rc(), on_false.tp_rc())
-                            .unwrap_or_else(|| {
-                                let then_note = WithSpan::new(
-                                    format!("`then` is {}", on_true.tp()),
-                                    on_true.span(),
-                                );
-                                let else_note = WithSpan::new(
-                                    format!("`else` is {}", on_false.tp()),
-                                    on_false.span(),
-                                );
-                                self.diags.push(Diagnostic::new_with_notes(
-                                    "branches types mismatch".to_string(),
-                                    *kw_span,
-                                    vec![then_note, else_note],
-                                ));
-
-                                Rc::new(Type::Bottom)
-                            })
-                    } else {
-                        // otherwise if `else` branch is not present in expression position,
-                        // conditional expression is invaid
-                        *tp = Rc::new(Type::Bottom);
-
-                        self.diags.push(Diagnostic::new(
-                            "conditional expression is missing the `else` branch".to_string(),
-                            expr.span(),
+                } else if let Some(on_false) = on_false {
+                    // in expression position, check that both `then` and `else` branches have the same type
+                    let fail_branch_typecheck = || {
+                        let then_note =
+                            WithSpan::new(format!("`then` is {}", on_true.tp()), on_true.span());
+                        let else_note =
+                            WithSpan::new(format!("`else` is {}", on_false.tp()), on_false.span());
+                        self.diags.push(Diagnostic::new_with_notes(
+                            "branches types mismatch".to_string(),
+                            *kw_span,
+                            vec![then_note, else_note],
                         ));
-                    }
+
+                        Rc::new(Type::Bottom)
+                    };
+
+                    *tp = merge_types(self.type_decl_map, on_true.tp_rc(), on_false.tp_rc())
+                        .unwrap_or_else(fail_branch_typecheck)
+                } else {
+                    // otherwise if `else` branch is not present in expression position,
+                    // conditional expression is invaid
+                    *tp = Rc::new(Type::Bottom);
+
+                    self.diags.push(Diagnostic::new(
+                        "conditional expression is missing the `else` branch".to_string(),
+                        expr.span(),
+                    ));
                 }
             }
             Expr::While { cond, body, .. } => {
@@ -402,20 +398,16 @@ impl Type {
 
 /// Check that types are "compatible". That means that either `lhs` or `rhs` should be a subtype of second one.
 fn match_types(type_decl_map: &TypeDeclMap, lhs: &Type, rhs: &Type) -> bool {
-    match (
-        type_decl_map.unalias_type(lhs),
-        type_decl_map.unalias_type(rhs),
-    ) {
-        (Type::Bottom, _) | (_, Type::Bottom) => true,
-        (a, b) if a == b => true,
-        _ => false,
-    }
+    return lhs.is_subtype_of(type_decl_map, rhs) || rhs.is_subtype_of(type_decl_map, lhs);
 }
 
 /// Find the common supertype between `lhs` and `rhs` if possible.
 fn merge_types(type_decl_map: &TypeDeclMap, lhs: Rc<Type>, rhs: Rc<Type>) -> Option<Rc<Type>> {
+    // FIXME: incorrect if lhs and rhs unalias into the same type, but lhs is a subtype of rhs
+
     let lhs = type_decl_map.unalias_type_rc(lhs);
     let rhs = type_decl_map.unalias_type_rc(rhs);
+
     match (lhs.as_ref(), rhs.as_ref()) {
         (Type::Bottom, _) => Some(rhs),
         (_, Type::Bottom) => Some(lhs),
