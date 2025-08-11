@@ -76,8 +76,8 @@ impl BinaryOp {
             Self::And => 3,
             Self::Eq | Self::NotEq => 4,
             Self::Less | Self::LessEq | Self::Greater | Self::GreaterEq => 5,
-            Self::Mul => 6,
-            Self::Plus | Self::Minus => 7,
+            Self::Plus | Self::Minus => 6,
+            Self::Mul => 7,
         }
     }
 
