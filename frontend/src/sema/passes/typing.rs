@@ -216,16 +216,17 @@ impl<'a> TypingImpl<'a> {
                     ))
                 };
 
-                let types_matched = match_types(lhs.tp(), rhs.tp());
-                if !types_matched {
-                    report_incompatible_types();
-                }
-
                 *tp = if op.value.is_cmp() {
                     Rc::new(Type::Bool)
-                } else if types_matched {
+                } else if match_types(lhs.tp(), rhs.tp()) {
                     lhs.tp_rc()
+                } else if op.value.is_logical()
+                    && match_types(lhs.tp(), &Type::Bool)
+                    && match_types(rhs.tp(), &Type::Bool)
+                {
+                    Rc::new(Type::Bool)
                 } else {
+                    report_incompatible_types();
                     Rc::new(Type::Bottom)
                 };
             }
@@ -330,8 +331,8 @@ impl<'a> TypingImpl<'a> {
             // these types should always be set in `type_expr` by lookup
             Expr::Ref { .. } | Expr::Call { .. } | Expr::MemberRef { .. } => {}
 
-            Expr::Binary { op, .. } if op.value.is_cmp() => {} // always bool
-            Expr::Bool { .. } => {}                            // always bool
+            Expr::Binary { op, .. } if op.value.is_cmp() || op.value.is_logical() => {} // always bool
+            Expr::Bool { .. } => {} // always bool
 
             Expr::Binary { tp, lhs, rhs, .. } => {
                 *tp = propagated.clone();
