@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use super::scoped_collections_utils::debug_print_scopes;
+
 /// A stack of `HashMap`s, useful for collecting some scoped information with shadowing, like variable types.
 /// Basic usage:
 /// ```
@@ -132,16 +134,6 @@ where
 
 impl<K: Debug, V: Debug> Debug for ScopedMap<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut first = true;
-        for (i, scope) in self.repr.iter().enumerate() {
-            if !first {
-                write!(f, "\n")?;
-            }
-
-            write!(f, "{}: {:?}", i, scope)?;
-            first = false;
-        }
-
-        Ok(())
+        debug_print_scopes(self.repr.iter(), f)
     }
 }

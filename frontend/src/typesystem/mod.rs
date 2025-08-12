@@ -75,8 +75,8 @@ impl Display for Type {
                 write!(f, ") -> {}", rettype)
             }
             Type::Struct { .. } => {
-                // this is odd, but valid, because we have no anonymous structs
-                unreachable!()
+                // this `unreachable` is odd, but valid, because we have no anonymous structs
+                unreachable!("struct type should not be formatted directly")
             }
         }
     }
