@@ -435,10 +435,20 @@ impl Parser {
             t => Err(ParseError::new(expected!("term"), t.to_string(), span)),
         }?;
 
-        if let Token::LParen = self.lexemes.peek().value {
-            self.parse_call_expr(term)
-        } else {
-            Ok(term)
+        self.parse_postfix_operators(term)
+    }
+
+    /// Parse postfix operators like member reference and call.
+    ///
+    /// Expects the first token to be anything.
+    /// If it is not `.` or `(`, simply returns passed expression unmodified.
+    fn parse_postfix_operators(&mut self, mut expr: Expr) -> Res<Expr> {
+        loop {
+            expr = match self.lexemes.peek().value {
+                Token::LParen => self.parse_call_expr(expr)?,
+                Token::Dot => self.parse_member_ref_expr(expr)?,
+                _ => return Ok(expr),
+            }
         }
     }
 
@@ -486,6 +496,23 @@ impl Parser {
             callee: Box::new(callee),
             args,
             span,
+        })
+    }
+
+    /// Parse member reference **operator**. This means that the target is already parsed, for example:
+    ///
+    /// `foo.bar` - here target is `foo` and should already be parsed, thus the input to `parse_member_ref_expr` should be `.bar`.
+    ///
+    /// Expects the first token to be `.`.
+    fn parse_member_ref_expr(&mut self, target: Expr) -> Res<Expr> {
+        self.get(token!(Token::Dot), expected!(Token::Dot))?;
+
+        let name = self.parse_id()?;
+
+        Ok(Expr::MemberRef {
+            tp: Rc::new(Type::Undef),
+            target: Box::new(target),
+            member: name,
         })
     }
 

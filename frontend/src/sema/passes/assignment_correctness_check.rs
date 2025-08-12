@@ -15,6 +15,9 @@ fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
         Expr::Num { .. } | Expr::Bool { .. } | Expr::Ret { .. } | Expr::Declare { .. } => false,
         Expr::Ref { name, .. } => ctx.contains(name.value.as_str()),
 
+        // TODO: change this when methods are added, they should not be reassignable
+        Expr::MemberRef { target, .. } => is_expr_assignable(ctx, target),
+
         Expr::If { .. }
         | Expr::While { .. }
         | Expr::Call { .. }
@@ -25,21 +28,22 @@ fn is_expr_assignable(ctx: &MutableVars, expr: &Expr) -> bool {
 
 /// Recursively go through expression tree, find expressions like `dest = src` and
 /// verify that their destination operand is an expression that is assignable to
-fn check_expr_assignments<'a, 'b: 'a>(
+fn check_expr_for_assignments<'a, 'b: 'a>(
     diags: &mut Vec<Diagnostic>,
     ctx: &'a mut MutableVars<'b>,
     expr: &'b Expr,
 ) {
     match expr {
         Expr::Num { .. } | Expr::Ref { .. } | Expr::Bool { .. } => {}
+        Expr::MemberRef { target, .. } => check_expr_for_assignments(diags, ctx, target),
         Expr::Call { callee, args, .. } => {
-            check_expr_assignments(diags, ctx, callee);
+            check_expr_for_assignments(diags, ctx, callee);
             args.iter()
-                .for_each(|arg| check_expr_assignments(diags, ctx, arg));
+                .for_each(|arg| check_expr_for_assignments(diags, ctx, arg));
         }
         Expr::While { cond, body, .. } => {
-            check_expr_assignments(diags, ctx, cond);
-            check_expr_assignments(diags, ctx, body);
+            check_expr_for_assignments(diags, ctx, cond);
+            check_expr_for_assignments(diags, ctx, body);
         }
         Expr::If {
             cond,
@@ -47,10 +51,10 @@ fn check_expr_assignments<'a, 'b: 'a>(
             on_false,
             ..
         } => {
-            check_expr_assignments(diags, ctx, cond);
-            check_expr_assignments(diags, ctx, on_true);
+            check_expr_for_assignments(diags, ctx, cond);
+            check_expr_for_assignments(diags, ctx, on_true);
             if let Some(on_false) = on_false {
-                check_expr_assignments(diags, ctx, on_false);
+                check_expr_for_assignments(diags, ctx, on_false);
             }
         }
         Expr::Binary {
@@ -69,12 +73,12 @@ fn check_expr_assignments<'a, 'b: 'a>(
                     *op_span,
                 ))
             }
-            check_expr_assignments(diags, ctx, lhs);
-            check_expr_assignments(diags, ctx, rhs);
+            check_expr_for_assignments(diags, ctx, lhs);
+            check_expr_for_assignments(diags, ctx, rhs);
         }
         Expr::Binary { lhs, rhs, .. } => {
-            check_expr_assignments(diags, ctx, lhs);
-            check_expr_assignments(diags, ctx, rhs);
+            check_expr_for_assignments(diags, ctx, lhs);
+            check_expr_for_assignments(diags, ctx, rhs);
         }
         Expr::Declare {
             is_mut,
@@ -82,7 +86,7 @@ fn check_expr_assignments<'a, 'b: 'a>(
             value,
             ..
         } => {
-            check_expr_assignments(diags, ctx, value);
+            check_expr_for_assignments(diags, ctx, value);
             if *is_mut {
                 ctx.insert(&name.value);
             }
@@ -90,12 +94,12 @@ fn check_expr_assignments<'a, 'b: 'a>(
         Expr::Block { body, .. } => {
             ctx.enter_scope();
             body.iter()
-                .for_each(|e| check_expr_assignments(diags, ctx, e));
+                .for_each(|e| check_expr_for_assignments(diags, ctx, e));
             ctx.leave_scope();
         }
         Expr::Ret { value, .. } => {
             if let Some(e) = value {
-                check_expr_assignments(diags, ctx, e);
+                check_expr_for_assignments(diags, ctx, e);
             }
         }
     }
@@ -110,7 +114,7 @@ fn check_decl_for_assignments(diags: &mut Vec<Diagnostic>, decl: &FnDecl) {
             .collect(),
     );
 
-    check_expr_assignments(diags, &mut ctx, &decl.body)
+    check_expr_for_assignments(diags, &mut ctx, &decl.body)
 }
 
 impl Pass for AssignmentCorrectnessCheck {

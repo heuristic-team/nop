@@ -38,6 +38,11 @@ fn check_references_in_expr<'a>(diags: &mut Vec<Diagnostic>, ctx: &mut Names<'a>
                 check_references_in_expr(diags, ctx, on_false);
             }
         }
+        
+        // sadly we cannot check validity of field reference here,
+        // because expression type is unknown at this point
+        Expr::MemberRef { target, .. } => check_references_in_expr(diags, ctx, target),
+
         Expr::Call { callee, args, .. } => {
             check_references_in_expr(diags, ctx, callee);
             for arg in args {
