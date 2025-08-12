@@ -377,7 +377,9 @@ impl<'a> TypingImpl<'a> {
     }
 }
 
-/// Check that types are "compatible". That means that either `lhs` or `rhs` should be a subtype of second one.
+/// Check that types are "compatible".
+///
+/// That means that either `lhs == rhs` or one of them is `bottom`.
 fn match_types(lhs: &Type, rhs: &Type) -> bool {
     match (lhs, rhs) {
         (Type::Bottom, _) | (_, Type::Bottom) => true,
