@@ -157,6 +157,7 @@ impl ASTTranslator {
                 func.add_to_current_block(sub);
                 dest
             }
+            _ => todo!(), // Implement logical and comparison BinaryOp
         }
     }
 
