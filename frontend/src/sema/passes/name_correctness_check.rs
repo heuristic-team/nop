@@ -6,7 +6,6 @@ use crate::TranslationUnit;
 use crate::TypeDeclMap;
 use crate::ast::*;
 use crate::lexer::WithSpan;
-use crate::print::PrettyPrintable;
 use crate::support::ScopedSet;
 
 /// Pass ther checks that all references to named values (variables, parameters, functions) are valid.
