@@ -1,10 +1,14 @@
 #![feature(let_chains)]
 
 mod alloca;
+mod nni;
+mod threads;
+mod utils;
 
+use utils::*;
 // static mut ALLOCA: Option<alloca::HAllocator<T, U>> = None;
 
-// pub extern "C" fn init(main: fn()) {
+// pub extern "C" fn init(main: fn(), stw: &'static bool) {
 //   unsafe {
 //     ALLOCA = Some(alloca::ArenaAllocator3::new(8 << 40));
 //   }
@@ -20,16 +24,20 @@ mod alloca;
 //   }
 // }
 
-type reg = usize;
+// static mut THREADS: Option<threads::Threads> = None;
 
 pub extern "C" fn go(func: fn(reg, reg, reg, reg, reg),
                      r1: reg, r2: reg, r3: reg, r4: reg, r5: reg) {
   func(r1, r2, r3, r4, r5);
 }
 
+// pub extern "C" fn go_gc() {}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    
 
     #[test]
     fn it_works() {
