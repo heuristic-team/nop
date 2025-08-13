@@ -553,6 +553,8 @@ impl Parser {
             .span
             .start;
 
+        self.eat_while(token!(Token::EOL));
+
         let mut body = Vec::new();
         while self.lexemes.peek().value != Token::RBrace {
             self.eat_while(token!(Token::EOL));
