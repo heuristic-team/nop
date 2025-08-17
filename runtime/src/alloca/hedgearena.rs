@@ -4,7 +4,7 @@ use crate::alloca::ptr;
 use crate::alloca::arena::Arena3;
 
 #[derive(Debug)]
-pub(crate) struct HedgeArena {
+pub struct HedgeArena {
   start: ptr,
   cur: ptr,
   size: usize, // = 32x
@@ -57,7 +57,7 @@ impl Arena3 for HedgeArena {
   }
   
   fn black_map(&self) -> (ptr, usize) {
-    (self.start + self.size >> 6, self.size >> 6)
+    (self.start + (self.size >> 6), self.size >> 6)
   }
   
   fn clear_mark(&mut self) {
@@ -82,7 +82,6 @@ impl Arena3 for HedgeArena {
                            -1, 0);
       assert_ne!(res, libc::MAP_FAILED);
     }
-    unsafe { *(self.start as *mut u8) = 1 };
     self.clear_mark();
   }
   

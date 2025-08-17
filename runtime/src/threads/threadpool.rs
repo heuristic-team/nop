@@ -4,18 +4,17 @@ use std::thread::ThreadId;
 use crate::threads::nthread::{NThread, ThreadPhase, ThreadState};
 use crate::utils::reg;
 use dashmap::DashMap;
-use crate::THREADS;
 
 pub struct ThreadPool {
-  thread_map: Arc<DashMap<ThreadId, NThread>>,
-  count_nop: AtomicUsize
+  pub thread_map: Arc<DashMap<ThreadId, NThread>>,
+  pub count_of_mutable: AtomicUsize,
 }
 
 impl ThreadPool {
   pub fn new() -> ThreadPool {
     Self {
       thread_map: Arc::new(DashMap::new()),
-      count_nop: AtomicUsize::new(0)
+      count_of_mutable: AtomicUsize::new(0)
     }
   }
   
@@ -35,50 +34,35 @@ impl ThreadPool {
     });
     
     while i == *id.lock().unwrap() {}
-    self.count_nop.fetch_add(1, Ordering::Relaxed);
+    self.count_of_mutable.fetch_add(1, Ordering::Relaxed);
     self.thread_map.insert(*id.lock().unwrap(), NThread {
       routine,
       state: Arc::new(std::sync::RwLock::new(ThreadState::Runnable)),
-      phase: ThreadPhase::Nop,
+      phase: ThreadPhase::Mutable,
     });
     
     main_in_process.store(false, Ordering::SeqCst);
   }
   
-  pub fn go_native(&mut self, rbp: reg, rsp: reg) {
-    assert_ne!(self.count_nop.load(Ordering::Relaxed), 0);
-    self.count_nop.fetch_sub(1, Ordering::Relaxed);
+  pub fn go_immut(&mut self, rbp: reg) {
+    assert_ne!(self.count_of_mutable.load(Ordering::Relaxed), 0);
     
     self.thread_map
         .get_mut(&std::thread::current().id())
         .expect("fantom thread")
-        .phase = ThreadPhase::new(rbp, rsp);
+        .phase = ThreadPhase::new(rbp);
+    
+    self.count_of_mutable.fetch_sub(1, Ordering::Relaxed);
   }
   
-  pub fn go_back(&mut self) {
-    self.count_nop.fetch_add(1, Ordering::Relaxed);
+  pub fn go_mut(&mut self) {
     
     self.thread_map
         .get_mut(&std::thread::current().id())
         .expect("fantom thread")
-        .phase = ThreadPhase::Nop
+        .phase = ThreadPhase::Mutable;
+        
+    self.count_of_mutable.fetch_add(1, Ordering::Relaxed);
   }
 }
 
-extern "C" fn go_native(rbp: reg, rsp: reg) {
-  unsafe {
-    match THREADS.as_mut() {
-      None => { panic!("THREADS is not set")}
-      Some(mut threads) => { threads.go_native(rbp, rsp)}
-    }
-  }
-}
-
-extern "C" fn go_back() {
-  unsafe {
-    match THREADS.as_mut() {
-      None => { panic!("THREADS is not set") }
-      Some(mut threads) => { threads.go_back()}
-    }
-  }
-}

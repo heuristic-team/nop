@@ -1,26 +1,27 @@
 use std::sync::{Arc, RwLock};
 use crate::utils::reg;
 
-pub(crate) struct NThread {
-  pub(crate) routine: std::thread::JoinHandle<()>,
-  pub(crate) state: Arc<RwLock<ThreadState>>,
-  pub(crate) phase: ThreadPhase
+pub struct NThread {
+  pub routine: std::thread::JoinHandle<()>,
+  pub state: Arc<RwLock<ThreadState>>, // i guess arc or rw or rw and arc id redundant
+  pub phase: ThreadPhase
 }
 
-pub(crate) enum ThreadPhase {
-  Nop,
-  Native(ThreadCntxt)
+#[derive(Debug, Clone, Copy)]
+pub enum ThreadPhase {
+  Mutable,
+  Immutable(ThreadCntxt)
 }
 
 impl ThreadPhase {
-  pub fn new(rbp: reg, rsp: reg) -> Self {
-    ThreadPhase::Native(ThreadCntxt {rbp, rsp})
+  pub fn new(rbp: reg) -> Self {
+    ThreadPhase::Immutable(ThreadCntxt {rbp})
   }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct ThreadCntxt {
-  pub(crate) rbp: reg,
-  pub(crate) rsp: reg
+  pub rbp: reg,
 }
 
 pub(crate) enum ThreadState {

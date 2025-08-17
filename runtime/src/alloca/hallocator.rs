@@ -5,7 +5,7 @@ use crate::alloca::allocator::ArenaAllocator3;
 use crate::alloca::arena::Arena3;
 use crate::alloca::heapedarena::{Heap, HeapedArena};
 
-pub(crate) struct HAllocator<T: Object, U: Arena3> {
+pub struct HAllocator<T: Object, U: Arena3> {
   start: ptr,
   max_size: usize,
   used_memory: AtomicUsize,
@@ -97,7 +97,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   }
   
   
-  fn alloc(&mut self, o: &T) -> ptr {
+  fn alloc(&mut self, o: &T) -> (ptr, bool) {
     let mut maybe_heaped_arena = self.heap.get_min_more_then(o.size());
     if maybe_heaped_arena.is_none() {
     
@@ -134,10 +134,14 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
         }
       }
     }
-    
-    self.used_memory.fetch_add(o.size(), Ordering::Relaxed);
     self.heap.insert(heaped_arena);
-    ptr
+    
+    let used = self.used_memory.load(Ordering::Relaxed);
+    if used > self.max_size {
+      (ptr, true)
+    } else {
+      (ptr, false)
+    }
   }
   
   fn mark_white(&mut self) {

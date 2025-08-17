@@ -3,6 +3,8 @@ mod arena;
 mod hallocator;
 mod hedgearena;
 mod heapedarena;
+pub use hedgearena::HedgeArena;
+pub use hallocator::HAllocator;
 
 pub(crate) type ptr = usize;
 
@@ -11,6 +13,20 @@ pub trait Object {
   fn get_bitset_of_ref(&self) -> &'static [u8];
 }
 
+pub struct ObjectImpl {
+  size: usize,
+  bitset: &'static [u8],
+}
+
+impl Object for ObjectImpl {
+  fn size(&self) -> usize {
+    self.size
+  }
+  
+  fn get_bitset_of_ref(&self) -> &'static [u8] {
+    self.bitset
+  }
+}
 
 #[cfg(test)]
 mod tests {

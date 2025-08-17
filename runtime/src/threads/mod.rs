@@ -1,11 +1,14 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::ThreadId;
+use crate::threads::nthread::NThread;
 use crate::threads::threadpool::ThreadPool;
 use crate::utils::*;
 mod nthread;
 mod threadpool;
+pub use nthread::ThreadPhase;
 
-pub(crate) struct Threads {
-  pool: ThreadPool,
+pub struct Threads {
+  pub pool: ThreadPool,
   stw: &'static bool
 }
 
@@ -21,13 +24,13 @@ impl Threads {
     self.pool.append(func, r1, r2, r3, r4, r5);
   }
   
-  pub fn go_native(&mut self, rbp: reg, rsp: reg) {
-    self.pool.go_native(rbp, rsp);
+  pub fn go_immut(&mut self, rbp: reg) {
+    self.pool.go_immut(rbp);
   }
   
-  pub fn go_back(&mut self) {
+  pub fn go_mut(&mut self) {
     while self.stw {}
     
-    self.pool.go_back();
+    self.pool.go_mut();
   }
 }
