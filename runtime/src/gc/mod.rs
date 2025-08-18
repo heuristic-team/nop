@@ -1,13 +1,17 @@
+mod markqueue;
+
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use crate::{alloca, threads};
+use crate::alloca::Arena3;
+use crate::gc::markqueue::MarkQueue;
 use crate::threads::ThreadPhase;
 use crate::utils::reg;
 
-pub struct Gc {
+pub struct Gc<'a, T: Arena3> {
   threads: Arc<threads::Threads>,
   
   stw_is_done: Mutex<bool>,
@@ -28,9 +32,10 @@ pub struct Gc {
   count_active_workers: AtomicUsize,
   
   root: Vec<alloca::ptr>,
+  mark_queue: MarkQueue<'a, T>,
 }
 
-impl Gc {
+impl<T: Arena3> Gc<T> {
   
   pub fn new(threads: Arc<threads::Threads>) -> Self {
     Self {
@@ -44,13 +49,17 @@ impl Gc {
       mark_is_done: Mutex::new(false),
       mark_cv: Default::default(),
       
+      root_is_done: Mutex::new(false),
+      root_cv: Default::default(),
+      
       work_is_done: Mutex::new(false),
       work_cv: Default::default(),
       
-      workers: Vec::with_capacity(count_worker),
+      workers: Vec::new(),
       count_active_workers: AtomicUsize::new(0),
       
       root: Vec::new(),
+      mark_queue: MarkQueue::new(),
     }
   }
   

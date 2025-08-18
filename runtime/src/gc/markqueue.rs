@@ -1,0 +1,39 @@
+use std::cmp::min;
+pub use crate::alloca::*;
+use std::sync::Arc;
+
+pub enum MarkQueueElement<'a, T: Arena3> {
+  arena(&'a mut T),
+  object(Arc<T>)
+}
+
+pub struct MarkQueue<'a, T: Arena3> {
+  queue: std::sync::Mutex<Vec<MarkQueueElement<'a, T>>>,
+}
+
+impl<'a, T: Arena3> MarkQueue<'a, T> {
+  pub fn new() -> MarkQueue<'a, T> {
+    Self {
+      queue: std::sync::Mutex::new(vec![]),
+    }
+  }
+  
+  pub fn pushn(&mut self, elements: Vec<MarkQueueElement<'a, T>>) {
+    self.queue
+        .lock()
+        .expect("pushn")
+        .extend(elements);
+  }
+  
+  pub fn popn(&mut self, n: usize) -> Vec<MarkQueueElement<'a, T>> {
+    let mut lock = self.queue
+        .lock()
+        .expect("popn");
+    let bound = min(lock.len(), n);
+    let mut result = vec![];
+    for _ in 0..bound {
+      result.push(lock.pop().expect("popn copy"));
+    }
+    result
+  }
+}

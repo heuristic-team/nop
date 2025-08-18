@@ -2,10 +2,10 @@ use std::sync::Mutex;
 use crate::alloca::arena::Arena3;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct HeapedArena {
-  pub(crate) num_of_block: usize,
-  pub(crate) num_of_arena: usize,
-  pub(crate) param: usize
+pub struct HeapedArena {
+  pub num_of_block: usize,
+  pub num_of_arena: usize,
+  pub param: usize
 }
 
 impl Eq for HeapedArena {}

@@ -5,6 +5,7 @@ mod hedgearena;
 mod heapedarena;
 pub use hedgearena::HedgeArena;
 pub use hallocator::HAllocator;
+pub use arena::Arena3;
 
 pub(crate) type ptr = usize;
 
