@@ -6,12 +6,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use crate::{alloca, threads};
-use crate::alloca::Arena3;
+use crate::alloca::{Arena3, Object};
 use crate::gc::markqueue::MarkQueue;
 use crate::threads::ThreadPhase;
 use crate::utils::reg;
 
-pub struct Gc<'a, T: Arena3> {
+pub struct Gc<'a, T: Object, U: Arena3> {
+  pub alloca: alloca::HAllocator<T, U>,
+  
   threads: Arc<threads::Threads>,
   
   stw_is_done: Mutex<bool>,
@@ -32,13 +34,14 @@ pub struct Gc<'a, T: Arena3> {
   count_active_workers: AtomicUsize,
   
   root: Vec<alloca::ptr>,
-  mark_queue: MarkQueue<'a, T>,
+  mark_queue: MarkQueue<'a, U>,
 }
 
-impl<T: Arena3> Gc<T> {
+impl<T: Object, U: Arena3> Gc<T, U> {
   
-  pub fn new(threads: Arc<threads::Threads>) -> Self {
+  pub fn new(threads: Arc<threads::Threads>, max_size: usize) -> Self {
     Self {
+      alloca: alloca::HAllocator::<T, U>::new(max_size),
       threads,
       stw_is_done: Mutex::new(false),
       stw_cv: Default::default(),
@@ -81,7 +84,7 @@ impl<T: Arena3> Gc<T> {
           
           let count_for_scan = self.root.len() / count + 1;
           for j in min(i*count_for_scan, self.root.len())..self.root.len() {
-          
+            match  {  }
           }
           // TODO WORK
           
