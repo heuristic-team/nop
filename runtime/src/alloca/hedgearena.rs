@@ -109,7 +109,11 @@ impl Arena3 for HedgeArena {
   }
   
   fn fetch_and_add_in_queue(&mut self) -> bool {
-    self.in_queue.fetch_not(Ordering::SeqCst)
+    self.in_queue.fetch_or(true, Ordering::SeqCst)
+  }
+  
+  fn fetch_and_take_from_queue(&mut self) -> bool {
+    self.in_queue.fetch_and(false, Ordering::SeqCst)
   }
 }
 

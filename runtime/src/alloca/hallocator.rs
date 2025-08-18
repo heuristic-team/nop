@@ -166,26 +166,30 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   }
   
   
-  fn mark_gray(&mut self, ptr: ptr) {
+  fn mark_gray(&mut self, ptr: ptr) -> Option<&mut U> {
     match self.arena_by_ptr(ptr) {
       Some(arena) => {
         arena.mark_gray(ptr);
+        Some(arena)
       }
       None => {
         *self.large_objects.iter_mut()
-            .find(|p| (**p >> 2) == (ptr >> 2)) |= 1;;
+            .find(|p| (**p >> 2) == (ptr >> 2)) |= 1;
+        None
       }
     }
   }
   
-  fn mark_black(&mut self, ptr: ptr) {
+  fn mark_black(&mut self, ptr: ptr) -> Option<&mut U> {
     match self.arena_by_ptr(ptr) {
       Some(arena) => {
         arena.mark_gray(ptr);
+        Some(arena)
       }
       None => {
         *self.large_objects.iter_mut()
             .find(|p| (**p >> 2) == (ptr >> 2)) |= 2;
+        None
       }
     }
   }

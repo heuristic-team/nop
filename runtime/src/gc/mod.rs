@@ -7,7 +7,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use crate::{alloca, threads};
 use crate::alloca::{Arena3, Object};
-use crate::gc::markqueue::MarkQueue;
+use crate::gc::markqueue::{MarkQueue, MarkQueueElement};
 use crate::threads::ThreadPhase;
 use crate::utils::reg;
 
@@ -81,11 +81,34 @@ impl<T: Object, U: Arena3> Gc<T, U> {
               root_is_done_flag = self.stw_cv.wait(root_is_done_flag).unwrap()
             }
           }
+          let mut local_queue = vec![];
           
           let count_for_scan = self.root.len() / count + 1;
           for j in min(i*count_for_scan, self.root.len())..self.root.len() {
-            match  {  }
+            match self.alloca.mark_gray(self.root[j]) {
+              None => {
+                local_queue.push(MarkQueueElement::object(self.root[j]))
+              }
+              Some(a) => {
+                if !a.fetch_and_add_in_queue() {
+                  local_queue.push(MarkQueueElement::arena(a))
+                }
+              }
+            }
+            if !(local_queue.len() & 15) { // TODO: make somethink like cfg
+              self.mark_queue.pushn(&mut local_queue);
+            }
           }
+          
+          loop {
+            
+            
+            while local_queue.len() > 0 {
+              self.mark(local_queue.pop().unwrap());
+            }
+            
+          }
+          
           // TODO WORK
           
           {
@@ -158,7 +181,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
     // TODO
   }
   
-  fn mark(&mut self) {
-  
+  fn mark(&mut self, el: MarkQueueElement<U>) {
+    // TODO
   }
 }

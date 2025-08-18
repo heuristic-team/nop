@@ -17,7 +17,7 @@ impl<'a, T: Arena3> MarkQueue<'a, T> {
     }
   }
   
-  pub fn pushn(&mut self, elements: Vec<MarkQueueElement<'a, T>>) {
+  pub fn pushn(&mut self, elements: &mut Vec<MarkQueueElement<'a, T>>) {
     self.queue
         .lock()
         .expect("pushn")
