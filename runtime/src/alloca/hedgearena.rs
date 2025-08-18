@@ -18,6 +18,8 @@ pub struct HedgeArena {
   
   /// dbg only
   objects: Vec<usize>,
+  
+  in_queue: AtomicBool,
 }
 
 impl Arena3 for HedgeArena {
@@ -28,7 +30,8 @@ impl Arena3 for HedgeArena {
       size,
       span_start: start + (size >> 5),
       live: Default::default(),
-      objects: vec![]
+      objects: vec![],
+      in_queue: Default::default(),
     }
   }
   
@@ -103,6 +106,10 @@ impl Arena3 for HedgeArena {
     unsafe {
       std::ptr::write(((self.start + self.span_start >> 1) + (index >> 3)) as *mut u8, (index % 8) as u8);
     }
+  }
+  
+  fn fetch_and_add_in_queue(&mut self) -> bool {
+    self.in_queue.fetch_not(Ordering::SeqCst)
   }
 }
 

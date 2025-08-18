@@ -1,10 +1,9 @@
 use std::cmp::min;
 pub use crate::alloca::*;
-use std::sync::Arc;
 
 pub enum MarkQueueElement<'a, T: Arena3> {
   arena(&'a mut T),
-  object(Arc<T>)
+  object(ptr)
 }
 
 pub struct MarkQueue<'a, T: Arena3> {

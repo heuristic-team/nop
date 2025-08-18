@@ -28,4 +28,6 @@ pub trait Arena3 {
   fn mark_gray(&mut self, ptr: ptr);
   
   fn mark_black(&mut self, ptr: ptr);
+
+  fn fetch_and_add_in_queue(&mut self) -> bool;
 }
