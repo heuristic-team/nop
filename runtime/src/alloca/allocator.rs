@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::alloca::{ptr, Object};
 use crate::alloca::arena::Arena3;
 
@@ -16,7 +17,7 @@ pub trait ArenaAllocator3<T: Object, U: Arena3> {
   
   fn mark_white(&mut self);
   
-  fn arena_by_ptr(&mut self, ptr: usize) -> &mut U;
+  fn arena_by_ptr(&mut self, ptr: usize) -> Option<&mut U>;
   
   fn mark_gray(&mut self, ptr: ptr);
   

@@ -1,3 +1,4 @@
+use std::collections::LinkedList;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::alloca::{ptr, Object};
@@ -14,19 +15,17 @@ pub struct HAllocator<T: Object, U: Arena3> {
   
   blocks: Box<[Option<HedgeBlock<U>>]>,
   count_of_blocks: AtomicUsize,
-  large_objects: Vec<Arc<U>>,
+  large_objects: LinkedList<ptr>,
   
   _marker: std::marker::PhantomData<T>,
 }
 
 impl<T: Object, U: Arena3> HAllocator<T, U> {
-  fn block_by_ptr(&mut self, ptr: ptr) -> &mut HedgeBlock<U> {
+  fn block_by_ptr(&mut self, ptr: ptr) -> Option<&mut HedgeBlock<U>> {
     assert!(self.start <= ptr);
     assert!(ptr < self.start + (1 << Self::LOG_CAPACITY_SIZE));
     self.blocks[ptr >> Self::LOG_BLOCK_SIZE]
         .as_mut()
-        .expect(&format!("block_by_ptr: \
-        index: {}\n", ptr >> Self::LOG_BLOCK_SIZE))
   }
   
   fn add_new_needed_block(&mut self, size: usize) -> &mut HedgeBlock<U> {
@@ -89,7 +88,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
         heap: Heap::new(),
         blocks: Box::new([const {None}; 1 << (<Self as ArenaAllocator3<T, U>>::LOG_CAPACITY_SIZE - <Self as ArenaAllocator3<T, U>>::LOG_BLOCK_SIZE)]),
         count_of_blocks: AtomicUsize::new(0),
-        large_objects: vec![],
+        large_objects: LinkedList::new(),
         _marker: Default::default(),
       }
     }
@@ -117,7 +116,8 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
     let ptr = ref_arena.cur();
     
     if ptr == ref_arena.start() {
-      let mut block = self.block_by_ptr(ptr);
+      let mut block = self.block_by_ptr(ptr)
+          .expect("hz");
       match block.slots.pop() {
         Some(heaped_arena_from_slots) => {
           self.arena_by_heaped(heaped_arena_from_slots).on();
@@ -152,23 +152,42 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
       if let arena = self.arena_by_heaped(heaped_arena_from_slots.clone()) && arena.live() {
         arena.clear_mark();
       }
-    };
+    }
+    
+    for large in self.large_objects.iter_mut() {
+      *large >>= 2;
+      *large <<= 2;
+    }
   }
   
-  fn arena_by_ptr(&mut self, ptr: usize) -> &mut U {
+  fn arena_by_ptr(&mut self, ptr: usize) -> Option<&mut U> {
     self.block_by_ptr(ptr)
-        .arena_by_ptr(ptr)
+        .map(|block| block.arena_by_ptr(ptr))
   }
   
   
   fn mark_gray(&mut self, ptr: ptr) {
-    self.arena_by_ptr(ptr)
-        .mark_gray(ptr);
+    match self.arena_by_ptr(ptr) {
+      Some(arena) => {
+        arena.mark_gray(ptr);
+      }
+      None => {
+        *self.large_objects.iter_mut()
+            .find(|p| (**p >> 2) == (ptr >> 2)) |= 1;;
+      }
+    }
   }
   
   fn mark_black(&mut self, ptr: ptr) {
-    self.arena_by_ptr(ptr)
-        .mark_black(ptr);
+    match self.arena_by_ptr(ptr) {
+      Some(arena) => {
+        arena.mark_gray(ptr);
+      }
+      None => {
+        *self.large_objects.iter_mut()
+            .find(|p| (**p >> 2) == (ptr >> 2)) |= 2;
+      }
+    }
   }
 }
 
