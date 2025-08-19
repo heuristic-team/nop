@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use crate::{alloca, threads};
-use crate::alloca::{Arena3, Object};
+use crate::alloca::{ptr, Arena3, Object};
 use crate::gc::markqueue::{MarkQueue, MarkQueueElement};
 use crate::threads::ThreadPhase;
 use crate::utils::reg;
@@ -85,16 +85,8 @@ impl<T: Object, U: Arena3> Gc<T, U> {
           
           let count_for_scan = self.root.len() / count + 1;
           for j in min(i*count_for_scan, self.root.len())..self.root.len() {
-            match self.alloca.mark_gray(self.root[j]) {
-              None => {
-                local_queue.push(MarkQueueElement::object(self.root[j]))
-              }
-              Some(a) => {
-                if !a.fetch_and_add_in_queue() {
-                  local_queue.push(MarkQueueElement::arena(a))
-                }
-              }
-            }
+            self.mark_gray_el_from_ptr(self.root[j], &mut local_queue);
+            
             if !(local_queue.len() & 15) { // TODO: make somethink like cfg
               self.mark_queue.pushn(&mut local_queue);
             }
@@ -183,5 +175,54 @@ impl<T: Object, U: Arena3> Gc<T, U> {
   
   fn mark(&mut self, el: MarkQueueElement<U>) {
     // TODO
+    let mut local_queue = vec![];
+    match el {
+      MarkQueueElement::arena(arena) => {
+        let (black, size) = arena.black_map();
+        let (gray, size) = arena.gray_map();
+        let mut diff_bits = vec![];
+        // byte-iter
+        for i in (0..size).step_by(8) {
+          unsafe {
+            diff_bits.push(*((gray + i) as *u64) ^ *((black + i) as *u64));
+          }
+        }
+        // bit-iter
+        for i in 0..(size * 8) {
+          if diff_bits[i / 64] & (1 << (i % 64)) {
+            unsafe {
+              *((black + (i / 64)) as *mut u64) |= (1 << (i % 64));
+            }
+            let ptr_to_obj = arena.span_start() + i * 8;
+            let ptr_to_header = (ptr_to_obj - 8) as * dyn Object;
+            let size_of_object = ptr_to_header.size();
+            for j in 0..size / 8 {
+              if ptr_to_header.get_bitset_of_ref()[j / 8] & (1 << (j % 8)) {
+                let field_ptr = ptr_to_obj + j * 8;
+                self.mark_gray_el_from_ptr(field_ptr, &mut local_queue);
+              }
+            }
+          }
+        }
+      }
+      MarkQueueElement::object(ptr) => {
+        todo!();
+        // делать мне нехуй чтоли
+        // TODO
+      }
+    }
+  }
+  
+  fn mark_gray_el_from_ptr(&mut self, ptr: ptr, source: &mut Vec<MarkQueueElement<U>>) {
+    match self.alloca.mark_gray(ptr) {
+      None => {
+        source.push(MarkQueueElement::object(ptr))
+      }
+      Some(a) => {
+        if !a.fetch_and_add_in_queue() {
+          source.push(MarkQueueElement::arena(a))
+        }
+      }
+    }
   }
 }

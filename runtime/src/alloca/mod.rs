@@ -61,7 +61,8 @@ mod tests {
     
     let inst_1 = TestObj { size: 24 };
     unsafe {
-      let ptr = aa.alloc(&inst_1);
+      let (ptr, pred) = aa.alloc(&inst_1);
+      assert_eq!(pred, false);
       assert_ne!(ptr, 0);
       std::ptr::write_bytes(ptr as *mut u8, 126, inst_1.size / 8);
     }
