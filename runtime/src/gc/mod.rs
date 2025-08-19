@@ -188,6 +188,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
       let mut work_is_done_flag = self.work_is_done.lock().unwrap();
       while !*work_is_done_flag {
         work_is_done_flag = self.work_cv.wait(work_is_done_flag).unwrap()
+        
       }
     }
   }
@@ -205,6 +206,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
     let mut local_queue = vec![];
     match el {
       MarkQueueElement::arena(arena) => {
+        arena.on()
         let (black, size) = arena.black_map();
         let (gray, size) = arena.gray_map();
         let mut diff_bits = vec![];

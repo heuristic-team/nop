@@ -75,8 +75,8 @@ impl Arena3 for HedgeArena {
     self.live.load(Ordering::Relaxed)
   }
   
-  fn on(&mut self) {
-    self.live.store(true, Ordering::Relaxed);
+  fn alive(&mut self) {
+    self.on();
     
     unsafe {
       let res = libc::mmap(self.start as *mut c_void, self.size,
@@ -86,6 +86,17 @@ impl Arena3 for HedgeArena {
       assert_ne!(res, libc::MAP_FAILED);
     }
     self.clear_mark();
+  }
+  
+  fn kill(&mut self) {
+    unsafe {
+      let res = libc::munmap(self.start as *mut c_void, self.size);
+      assert_eq!(res, 0);
+    }
+  }
+  
+  fn on(&mut self) {
+    self.live.store(true, Ordering::Relaxed);
   }
   
   fn off(&mut self) {

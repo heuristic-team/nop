@@ -108,7 +108,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
           .pop()
           .expect("In new needed_block len(slots)==0\n");
     
-          self.arena_by_heaped(heaped_version_of_first_arena).on();
+          self.arena_by_heaped(heaped_version_of_first_arena).alive();
           heaped_version_of_first_arena
     });
     let ref_arena = self.arena_by_heaped(heaped_arena);
@@ -120,7 +120,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
           .expect("hz");
       match block.slots.pop() {
         Some(heaped_arena_from_slots) => {
-          self.arena_by_heaped(heaped_arena_from_slots).on();
+          self.arena_by_heaped(heaped_arena_from_slots).alive();
           self.heap.insert(heaped_arena_from_slots);
         }
         None => {
@@ -129,7 +129,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
               .slots
               .pop()
               .expect("In new needed_block (when a last arena of the block is not empty) len(slots)==0\n");
-          self.arena_by_heaped(new_heaped_arena).on();
+          self.arena_by_heaped(new_heaped_arena).alive();
           self.heap.insert(new_heaped_arena);
         }
       }
@@ -146,11 +146,16 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   
   fn mark_white(&mut self) {
     let locked = self.heap.items.lock().expect("lock in white");
-    let copy = locked.clone();
-    drop(locked);
-    for heaped_arena_from_slots in copy.iter() {
-      if let arena = self.arena_by_heaped(heaped_arena_from_slots.clone()) && arena.live() {
+    
+    for heaped_arena_from_slots in locked.iter() {
+      let arena = &mut self.blocks[heaped_arena_from_slots.num_of_block]
+          .as_mut()
+          .expect("arena_by_heaped")
+          .items[heaped_arena_from_slots.num_of_arena];
+      
+      if arena.live() {
         arena.clear_mark();
+        arena.kill()
       }
     }
     
@@ -158,6 +163,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
       *large >>= 2;
       *large <<= 2;
     }
+    
   }
   
   fn arena_by_ptr(&mut self, ptr: usize) -> Option<&mut U> {
@@ -191,6 +197,28 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
             .find(|p| (**p >> 2) == (ptr >> 2)) |= 2;
         None
       }
+    }
+  }
+  
+  fn sweep(&mut self) {
+    
+    let mut locked = self.heap.items.lock().expect("lock in white");
+    let mut trash = vec![];
+    
+    for heaped_arena_from_slots in locked.iter() {
+      let arena = &mut self.blocks[heaped_arena_from_slots.num_of_block]
+            .as_mut()
+            .expect("arena_by_heaped")
+            .items[heaped_arena_from_slots.num_of_arena];
+      
+      if !arena.live() {
+        arena.kill();
+        trash.push(heaped_arena_from_slots)
+      }
+    }
+    
+    for t in trash.iter_mut() {
+      locked.remove(t);
     }
   }
 }

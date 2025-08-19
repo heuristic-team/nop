@@ -21,6 +21,10 @@ pub trait Arena3 {
   
   fn live(&self) -> bool;
   
+  fn alive(&mut self);
+  
+  fn kill(&mut self);
+  
   fn on(&mut self);
   
   fn off(&mut self);
