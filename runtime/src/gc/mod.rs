@@ -1,6 +1,7 @@
 mod markqueue;
 
 use std::cmp::min;
+use std::os::unix::process::parent_id;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
@@ -33,7 +34,7 @@ pub struct Gc<'a, T: Object, U: Arena3> {
   workers: Vec<JoinHandle<()>>,
   count_active_workers: AtomicUsize,
   
-  root: Vec<alloca::ptr>,
+  root: Vec<ptr>,
   mark_queue: MarkQueue<'a, U>,
 }
 
@@ -92,38 +93,55 @@ impl<T: Object, U: Arena3> Gc<T, U> {
             }
           }
           
-          loop {
-            
+          'external: loop {
             
             while local_queue.len() > 0 {
               self.mark(local_queue.pop().unwrap());
             }
             
-          }
-          
-          // TODO WORK
-          
-          {
-            if self.count_active_workers.fetch_sub(1, Ordering::SeqCst) == 1 {
-              
-              let mut root_is_done_flag = self.stw_is_done.lock().unwrap();
-              self.root = Vec::new();
-              *root_is_done_flag = false;
-              
-              let mut work_is_done_flag = self.work_is_done.lock().unwrap();
-              assert!(!*work_is_done_flag);
-              *work_is_done_flag = true;
-              
-              self.work_cv.notify_all();
-            } else {
-              
-              let mut work_is_done_flag = self.work_is_done.lock().unwrap();
-              while !*work_is_done_flag {
-                work_is_done_flag = self.work_cv.wait(work_is_done_flag).unwrap()
+            local_queue = self.mark_queue.popn(16);
+            if local_queue.len() == 0 {
+              if self.count_active_workers.fetch_sub(1, Ordering::SeqCst) == 1 {
+                self.mark_queue.pushn(&mut vec![MarkQueueElement::End]);
+                
+                {
+                  let mut root_is_done_flag = self.stw_is_done.lock().unwrap();
+                  self.root = Vec::new();
+                  *root_is_done_flag = false;
+                  
+                  let mut work_is_done_flag = self.work_is_done.lock().unwrap();
+                  assert!(!*work_is_done_flag);
+                  *work_is_done_flag = true;
+                  
+                  self.work_cv.notify_all();
+                }
+                
+                break 'external; // for better reading
+              } else {
+                loop {
+                  if let last = self.mark_queue.check()
+                      && last.is_some() {
+                    if last.unwrap() == MarkQueueElement::End {
+                      self.count_active_workers.fetch_add(1, Ordering::SeqCst);
+                      
+                      {
+                        let mut work_is_done_flag = self.work_is_done.lock().unwrap();
+                        while !*work_is_done_flag {
+                          work_is_done_flag = self.work_cv.wait(work_is_done_flag).unwrap()
+                        }
+                      }
+                      break 'external;
+                    }
+                    else {
+                      local_queue = self.mark_queue.popn(16);
+                      break;
+                    }
+                  }
+                }
               }
             }
           }
-          
+          // TODO WORK
         }
       }))
     }
@@ -133,35 +151,45 @@ impl<T: Object, U: Arena3> Gc<T, U> {
     self.threads.go_immut(rbp);
     
     
-    let mut root_is_done_flag = self.stw_is_done.lock().unwrap();
-    while !*root_is_done_flag {
-      root_is_done_flag = self.stw_cv.wait(root_is_done_flag).unwrap()
+    let mut stw_is_done_flag = self.stw_is_done.lock().unwrap();
+    while !*stw_is_done_flag {
+      stw_is_done_flag = self.stw_cv.wait(stw_is_done_flag).unwrap()
     }
+    
     
     // TODO
   }
   
   pub fn master(&mut self) {
-    
-    let mut heap_is_done_flag = self.heap_is_done.lock().unwrap();
-    while !*heap_is_done_flag {
-      heap_is_done_flag = self.heap_cv.wait(heap_is_done_flag).unwrap()
-    }
-    
-    for item in self.threads.pool.thread_map.iter() {
-      let nthread = item.value();
-      match nthread.phase {
-        ThreadPhase::Mutable => {
-          unreachable!();
-        }
-        ThreadPhase::Immutable(cntxt) => {
-          self.add_to_root(cntxt.rbp);
+    loop {
+      
+      let mut heap_is_done_flag = self.heap_is_done.lock().unwrap();
+      while !*heap_is_done_flag {
+        heap_is_done_flag = self.heap_cv.wait(heap_is_done_flag).unwrap()
+      }
+      
+      for item in self.threads.pool.thread_map.iter() {
+        let nthread = item.value();
+        match nthread.phase {
+          ThreadPhase::Mutable => {
+            unreachable!();
+          }
+          ThreadPhase::Immutable(cntxt) => {
+            self.add_to_root(cntxt.rbp);
+          }
         }
       }
+      
+      *(self.stw_is_done) = true;
+      self.stw_cv.notify_all();
+      
+      *(self.heap_is_done) = false;
+      
+      let mut work_is_done_flag = self.work_is_done.lock().unwrap();
+      while !*work_is_done_flag {
+        work_is_done_flag = self.work_cv.wait(work_is_done_flag).unwrap()
+      }
     }
-    
-    *(self.stw_is_done) = true;
-    self.stw_cv.notify_all();
   }
   
   pub fn notify_master(&mut self) {
@@ -174,7 +202,6 @@ impl<T: Object, U: Arena3> Gc<T, U> {
   }
   
   fn mark(&mut self, el: MarkQueueElement<U>) {
-    // TODO
     let mut local_queue = vec![];
     match el {
       MarkQueueElement::arena(arena) => {
@@ -209,6 +236,9 @@ impl<T: Object, U: Arena3> Gc<T, U> {
         todo!();
         // делать мне нехуй чтоли
         // TODO
+      }
+      MarkQueueElement::End() => {
+        panic!("something went wrong in mark");
       }
     }
   }
