@@ -1,17 +1,9 @@
 use std::sync::Arc;
-use crate::alloca::{ptr, Object};
+use crate::alloca::{ptr, Cfg, Object};
 use crate::alloca::arena::Arena3;
 
 pub trait ArenaAllocator3<T: Object, U: Arena3> {
-  const LOG_CAPACITY_SIZE: usize;
-  
-  const LOG_BLOCK_SIZE: usize;
-  
-  const LOG_START_ARENA_SIZE: usize;
-  
-  const LOG_MAX_ARENA_SIZE: usize;
-  
-  fn new(max_size: usize) -> Self;
+  fn new(config: Cfg) -> Self;
   
   fn alloc(&mut self, o: &T) -> (ptr, bool);
   
@@ -19,9 +11,9 @@ pub trait ArenaAllocator3<T: Object, U: Arena3> {
   
   fn arena_by_ptr(&mut self, ptr: usize) -> Option<&mut U>;
   
-  fn mark_gray(&mut self, ptr: ptr);
+  fn mark_gray(&mut self, ptr: ptr) -> Option<&mut U>;
   
-  fn mark_black(&mut self, ptr: ptr);
+  fn mark_black(&mut self, ptr: ptr) -> Option<&mut U>;
   
   fn sweep(&mut self);
 }

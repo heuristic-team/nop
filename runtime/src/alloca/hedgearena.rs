@@ -76,7 +76,7 @@ impl Arena3 for HedgeArena {
   }
   
   fn alive(&mut self) {
-    self.on();
+    self.make_live();
     
     unsafe {
       let res = libc::mmap(self.start as *mut c_void, self.size,
@@ -95,12 +95,13 @@ impl Arena3 for HedgeArena {
     }
   }
   
-  fn on(&mut self) {
+  fn make_live(&mut self) {
     self.live.store(true, Ordering::Relaxed);
   }
   
-  fn off(&mut self) {
+  fn temp_kill(&mut self) {
     self.live.store(false, Ordering::Relaxed);
+    self.clear_mark();
   }
   
   fn mark_gray(&mut self, ptr: ptr) {

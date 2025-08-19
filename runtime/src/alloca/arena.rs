@@ -25,9 +25,9 @@ pub trait Arena3 {
   
   fn kill(&mut self);
   
-  fn on(&mut self);
+  fn make_live(&mut self);
   
-  fn off(&mut self);
+  fn temp_kill(&mut self);
   
   fn mark_gray(&mut self, ptr: ptr);
   

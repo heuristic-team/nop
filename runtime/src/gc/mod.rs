@@ -1,16 +1,15 @@
 mod markqueue;
 
 use std::cmp::min;
-use std::os::unix::process::parent_id;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
-use crate::{alloca, threads};
-use crate::alloca::{ptr, Arena3, Object};
-use crate::gc::markqueue::{MarkQueue, MarkQueueElement};
-use crate::threads::ThreadPhase;
-use crate::utils::reg;
+use crate::{alloca, threads, gc, utils};
+use alloca::{ptr, Arena3, Object, Cfg};
+use threads::ThreadPhase;
+use gc::markqueue::{MarkQueue, MarkQueueElement};
+use utils::reg;
 
 pub struct Gc<'a, T: Object, U: Arena3> {
   pub alloca: alloca::HAllocator<T, U>,
@@ -38,11 +37,11 @@ pub struct Gc<'a, T: Object, U: Arena3> {
   mark_queue: MarkQueue<'a, U>,
 }
 
-impl<T: Object, U: Arena3> Gc<T, U> {
+impl<T: Object, U: Arena3> Gc<'_, T, U> {
   
-  pub fn new(threads: Arc<threads::Threads>, max_size: usize) -> Self {
+  pub fn new(threads: Arc<threads::Threads>, config: Cfg) -> Self {
     Self {
-      alloca: alloca::HAllocator::<T, U>::new(max_size),
+      alloca: alloca::HAllocator::<T, U>::new(config),
       threads,
       stw_is_done: Mutex::new(false),
       stw_cv: Default::default(),
@@ -206,14 +205,14 @@ impl<T: Object, U: Arena3> Gc<T, U> {
     let mut local_queue = vec![];
     match el {
       MarkQueueElement::arena(arena) => {
-        arena.on();
+        arena.make_live();
         let (black, size) = arena.black_map();
         let (gray, size) = arena.gray_map();
         let mut diff_bits = vec![];
         // byte-iter
         for i in (0..size).step_by(8) {
           unsafe {
-            diff_bits.push(*((gray + i) as *u64) ^ *((black + i) as *u64));
+            diff_bits.push(*((gray + i) as *const u64) ^ *((black + i) as *const u64));
           }
         }
         // bit-iter
@@ -223,7 +222,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
               *((black + (i / 64)) as *mut u64) |= (1 << (i % 64));
             }
             let ptr_to_obj = arena.span_start() + i * 8;
-            let ptr_to_header = (ptr_to_obj - 8) as * dyn Object;
+            let ptr_to_header = (ptr_to_obj - 8) as *const dyn Object;
             let size_of_object = ptr_to_header.size();
             for j in 0..size_of_object / 8 {
               if ptr_to_header.get_bitset_of_ref()[j / 8] & (1 << (j % 8)) {
@@ -239,7 +238,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
         // делать мне нехуй чтоли
         // TODO
       }
-      MarkQueueElement::End() => {
+      MarkQueueElement::End => {
         panic!("something went wrong in mark");
       }
     }

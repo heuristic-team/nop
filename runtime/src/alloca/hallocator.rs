@@ -1,75 +1,113 @@
 use std::collections::LinkedList;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::alloca::{ptr, Object};
 use crate::alloca::allocator::ArenaAllocator3;
 use crate::alloca::arena::Arena3;
-use crate::alloca::heapedarena::{Heap, HeapedArena};
+use crate::alloca::cfg::Cfg;
 
 pub struct HAllocator<T: Object, U: Arena3> {
   start: ptr,
-  max_size: usize,
   used_memory: AtomicUsize,
   
-  heap: Heap,
+  blocks: Vec<HedgeBlock<U>>,
+  num_of_blocks_by_tier: Box<[Box<[usize]>]>,
   
-  blocks: Box<[Option<HedgeBlock<U>>]>,
   count_of_blocks: AtomicUsize,
   large_objects: LinkedList<ptr>,
   
   _marker: std::marker::PhantomData<T>,
+  
+  
+  log_capacity_size: usize,
+  log_block_size: usize,
+  log_start_arena_size: usize,
+  step_arena_size: usize,
+  log_max_arena_size: usize,
+  count_of_tiers: usize,
+  max_size: usize,
+  max_object_size_by_tier: Box<dyn Fn(usize) -> usize>,
 }
 
 impl<T: Object, U: Arena3> HAllocator<T, U> {
   fn block_by_ptr(&mut self, ptr: ptr) -> Option<&mut HedgeBlock<U>> {
-    assert!(self.start <= ptr);
-    assert!(ptr < self.start + (1 << Self::LOG_CAPACITY_SIZE));
-    self.blocks[ptr >> Self::LOG_BLOCK_SIZE]
-        .as_mut()
+    if ptr < self.start || ptr >= self.start + (1 << self.log_capacity_size) {
+      None
+    } else {
+      Some(&mut self.blocks[ptr >> self.log_block_size])
+    }
   }
   
-  fn add_new_needed_block(&mut self, size: usize) -> &mut HedgeBlock<U> {
-    for power in (Self::LOG_START_ARENA_SIZE..=Self::LOG_MAX_ARENA_SIZE).step_by(2) {
-      if 1 << power > size {
-        let index = self.count_of_blocks.fetch_add(1, Ordering::Relaxed);
-        self.blocks[index] = Some(HedgeBlock::new
-            (self.start + (index << Self::LOG_BLOCK_SIZE),
-             1 << Self::LOG_BLOCK_SIZE, power, index));
+  fn add_new_needed_block(&mut self, size: usize) -> &mut U {
+    for tier in 0..self.count_of_tiers {
+      if (self.max_object_size_by_tier)(tier) >= size {
         
-        return self.blocks[index]
-            .as_mut()
-            .expect(&format!("arena_by_heaped:\n\
-            num_of_block: {}\n", index));
+        let index = self.count_of_blocks.fetch_add(1, Ordering::Relaxed);
+        let mut new_block = HedgeBlock::new(
+          self.start + (index << self.log_block_size),
+          1 << self.log_block_size,
+          self.log_start_arena_size + tier * self.step_arena_size,
+          index, // number_of_block
+          tier, // tier
+          (self.max_object_size_by_tier)(tier));
+        
+        let index_of_new_arena = new_block.archive.pop().unwrap();
+        let ref_arena: &mut U = new_block.items
+            .get_mut(index_of_new_arena.num_of_arena)
+            .expect("index out of bounds in add_new_needed_block");
+        ref_arena.alive();
+        new_block.current = Some(index_of_new_arena);
+        
+        self.blocks.push(new_block);
+        return ref_arena
       }
     }
     unreachable!();
   }
   
-  fn arena_by_heaped(&mut self, arena_from_heap: HeapedArena) -> &mut U {
-    &mut self.blocks[arena_from_heap.num_of_block]
-        .as_mut()
-        .expect(&format!("arena_by_heaped:\n\
-         num_of_block: {}\n", arena_from_heap.num_of_block))
-        .items[arena_from_heap.num_of_arena]
+  fn arena_tier_by_size(&self, size: usize) -> usize {
+    for tier in 1..self.count_of_tiers {
+      if (self.max_object_size_by_tier)(tier) > size {
+        return tier - 1
+      }
+    }
+    unreachable!();
+  }
+  
+  fn find(&mut self, size: usize) -> Option<&mut U> {
+    let tier = self.arena_tier_by_size(size);
+    for num_of_block in self.num_of_blocks_by_tier[tier].iter() {
+      let mut block = &self.blocks[*num_of_block];
+      if block.current.is_some() {
+        Some(&mut block.items[block.current.unwrap().num_of_arena]);
+      }
+    }
+    None
+  }
+  
+  fn for_each_arena<F>(&mut self, mut f: F)
+  where
+      F: FnMut(&mut U),
+  {
+    let current_count = self.count_of_blocks.load(Ordering::Relaxed);
+    
+    for i in 0..current_count {
+      let mut block = &self.blocks[i];
+      for index_arena in block.active.iter() {
+        let arena = &mut block.items[index_arena.num_of_arena];
+        f(arena);
+      }
+    }
   }
 }
 
 
 impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
-  const LOG_CAPACITY_SIZE: usize = 37;
-  const LOG_BLOCK_SIZE: usize = 26;
-  const LOG_START_ARENA_SIZE: usize = 12;
-  const LOG_MAX_ARENA_SIZE: usize = 16;
-  
-  fn new(max_size: usize) -> Self {
-    assert!(Self::LOG_CAPACITY_SIZE > Self::LOG_BLOCK_SIZE);
-    assert!(Self::LOG_BLOCK_SIZE > Self::LOG_MAX_ARENA_SIZE);
-    assert!(Self::LOG_MAX_ARENA_SIZE > Self::LOG_START_ARENA_SIZE);
-    
+  fn new(config: Cfg) -> Self {
+   
     unsafe {
       let start = libc::mmap(
         std::ptr::null_mut(),
-        1 << Self::LOG_CAPACITY_SIZE,
+        1 << config.log_capacity_size,
         libc::PROT_NONE,
         libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
         -1,
@@ -83,58 +121,54 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
       
       Self {
         start,
-        max_size,
+        max_size: config.max_size,
         used_memory: AtomicUsize::new(0),
-        heap: Heap::new(),
-        blocks: Box::new([const {None}; 1 << (<Self as ArenaAllocator3<T, U>>::LOG_CAPACITY_SIZE - <Self as ArenaAllocator3<T, U>>::LOG_BLOCK_SIZE)]),
+        blocks: Vec::new(),
+        num_of_blocks_by_tier: Box::new([]),
         count_of_blocks: AtomicUsize::new(0),
         large_objects: LinkedList::new(),
         _marker: Default::default(),
+        
+        log_capacity_size: config.log_capacity_size,
+        log_block_size: config.log_block_size,
+        log_start_arena_size: config.log_start_arena_size,
+        step_arena_size: config.step_arena_size,
+        log_max_arena_size: config.log_max_arena_size,
+        count_of_tiers: config.count_of_tiers,
+        max_object_size_by_tier: Box::new(move |tier| {
+          (config.max_object_size_by_size)(
+            1 << (config.log_start_arena_size + config.step_arena_size * tier)
+          )}),
       }
     }
-    
   }
   
   
+  
   fn alloc(&mut self, o: &T) -> (ptr, bool) {
-    let mut maybe_heaped_arena = self.heap.get_min_more_then(o.size());
-    if maybe_heaped_arena.is_none() {
+    let real_size = o.size() + 8;
     
-    }
-    let heaped_arena = maybe_heaped_arena.unwrap_or_else(|| {
-      let heaped_version_of_first_arena = self
-          .add_new_needed_block(o.size())
-          .slots
-          .pop()
-          .expect("In new needed_block len(slots)==0\n");
+    let mut maybe_ref_arena = self.find(real_size);
     
-          self.arena_by_heaped(heaped_version_of_first_arena).alive();
-          heaped_version_of_first_arena
+    let ref_arena = maybe_ref_arena.unwrap_or_else(|| {
+      self.add_new_needed_block(o.size())
     });
-    let ref_arena = self.arena_by_heaped(heaped_arena);
-    ref_arena.add(o.size());
     let ptr = ref_arena.cur();
     
-    if ptr == ref_arena.span_start() {
-      let mut block = self.block_by_ptr(ptr)
-          .expect("hz");
-      match block.slots.pop() {
-        Some(heaped_arena_from_slots) => {
-          self.arena_by_heaped(heaped_arena_from_slots).alive();
-          self.heap.insert(heaped_arena_from_slots);
-        }
-        None => {
-          let new_heaped_arena = self
-              .add_new_needed_block(o.size())
-              .slots
-              .pop()
-              .expect("In new needed_block (when a last arena of the block is not empty) len(slots)==0\n");
-          self.arena_by_heaped(new_heaped_arena).alive();
-          self.heap.insert(new_heaped_arena);
-        }
-      }
+    ref_arena.add(real_size);
+    let block_of_arena: &mut HedgeBlock<U> = self
+        .block_by_ptr(ref_arena.cur())
+        .expect("something went wrong");
+    
+    if ref_arena.how_much() < block_of_arena.tier {
+      block_of_arena.active
+          .push(block_of_arena.current.unwrap());
+      block_of_arena.current = block_of_arena.archive.pop();
     }
-    self.heap.insert(heaped_arena);
+    
+    unsafe {
+      *(ptr as *mut *const T) = o as *const T;
+    }
     
     let used = self.used_memory.load(Ordering::Relaxed);
     if used > self.max_size {
@@ -145,20 +179,10 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   }
   
   fn mark_white(&mut self) {
-    let locked = self.heap.items.lock().expect("lock in white");
-    
-    for heaped_arena_from_slots in locked.iter() {
-      let arena = &mut self.blocks[heaped_arena_from_slots.num_of_block]
-          .as_mut()
-          .expect("arena_by_heaped")
-          .items[heaped_arena_from_slots.num_of_arena];
-      
-      if arena.live() {
-        arena.clear_mark();
-        arena.kill()
-      }
-    }
-    
+    self.for_each_arena(|arena| {
+      arena.temp_kill();
+    });
+   
     for large in self.large_objects.iter_mut() {
       *large >>= 2;
       *large <<= 2;
@@ -167,8 +191,8 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
   }
   
   fn arena_by_ptr(&mut self, ptr: usize) -> Option<&mut U> {
-    self.block_by_ptr(ptr)
-        .map(|block| block.arena_by_ptr(ptr))
+    Some(self.block_by_ptr(ptr)?
+        .arena_by_ptr(ptr))
   }
   
   
@@ -180,7 +204,9 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
       }
       None => {
         *self.large_objects.iter_mut()
-            .find(|p| (**p >> 2) == (ptr >> 2)) |= 1;
+            .find(|p| (**p >> 2) == (ptr >> 2))
+            .expect("mark_gray")
+            |= 1;
         None
       }
     }
@@ -194,33 +220,27 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
       }
       None => {
         *self.large_objects.iter_mut()
-            .find(|p| (**p >> 2) == (ptr >> 2)) |= 2;
+            .find(|p| (**p >> 2) == (ptr >> 2))
+            .expect("mark_black")
+            |= 2;
         None
       }
     }
   }
   
   fn sweep(&mut self) {
-    
-    let mut locked = self.heap.items.lock().expect("lock in white");
-    let mut trash = vec![];
-    
-    for heaped_arena_from_slots in locked.iter() {
-      let arena = &mut self.blocks[heaped_arena_from_slots.num_of_block]
-            .as_mut()
-            .expect("arena_by_heaped")
-            .items[heaped_arena_from_slots.num_of_arena];
-      
+    self.for_each_arena(|arena| {
       if !arena.live() {
         arena.kill();
-        trash.push(heaped_arena_from_slots)
-      }
-    }
-    
-    for t in trash.iter_mut() {
-      locked.remove(t);
-    }
+      };
+    });
   }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IndexArena {
+  pub num_of_block: usize,
+  pub num_of_arena: usize,
 }
 
 #[derive(Debug)]
@@ -229,40 +249,53 @@ struct HedgeBlock<U: Arena3> {
   
   size: usize,
   
+  tier: usize, // the tier define log_arena_size and max_object_size
+  
   log_arena_size: usize,
+  max_object_size: usize,
   
   // only for find object by ref.
   // const
   items: Box<[U]>,
   
   // dynamic
-  slots: Vec<HeapedArena>,
+  archive: Vec<IndexArena>,
+  current: Option<IndexArena>,
+  active: Vec<IndexArena>,
 }
 
 impl<U: Arena3> HedgeBlock<U> {
-  fn new(start: ptr, size: usize, log_arena_size: usize, number_of_block: usize) -> Self {
+  fn new(start: ptr,
+         size: usize,
+         log_arena_size: usize,
+         number_of_block: usize,
+         tier: usize,
+         max_object_size: usize) -> Self {
+    
     let count = size >> log_arena_size;
     
     let mut arenas = Vec::with_capacity(count);
-    let mut slots = Vec::with_capacity(count);
+    let mut archive = Vec::with_capacity(count);
     for i in 0..count {
       arenas.push(U::new(start + (i << log_arena_size), 1 << log_arena_size));
-      slots.push(HeapedArena {
+      archive.push(IndexArena {
         num_of_block: number_of_block,
         num_of_arena: i,
-        param: 1 << log_arena_size,
       })
     }
     
     let box_arenas = arenas.into_boxed_slice();
     
-    
     Self {
       start,
       size,
+      tier,
       log_arena_size,
+      max_object_size,
       items: box_arenas,
-      slots,
+      archive,
+      current: None,
+      active: Vec::new(),
     }
   }
   

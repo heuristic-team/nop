@@ -29,7 +29,7 @@ impl Threads {
   }
   
   pub fn go_mut(&mut self) {
-    while self.stw {}
+    while *self.stw {}
     
     self.pool.go_mut();
   }
