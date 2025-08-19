@@ -206,7 +206,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
     let mut local_queue = vec![];
     match el {
       MarkQueueElement::arena(arena) => {
-        arena.on()
+        arena.on();
         let (black, size) = arena.black_map();
         let (gray, size) = arena.gray_map();
         let mut diff_bits = vec![];
