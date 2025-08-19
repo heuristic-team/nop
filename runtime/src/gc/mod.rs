@@ -196,7 +196,7 @@ impl<T: Object, U: Arena3> Gc<T, U> {
             let ptr_to_obj = arena.span_start() + i * 8;
             let ptr_to_header = (ptr_to_obj - 8) as * dyn Object;
             let size_of_object = ptr_to_header.size();
-            for j in 0..size / 8 {
+            for j in 0..size_of_object / 8 {
               if ptr_to_header.get_bitset_of_ref()[j / 8] & (1 << (j % 8)) {
                 let field_ptr = ptr_to_obj + j * 8;
                 self.mark_gray_el_from_ptr(field_ptr, &mut local_queue);
