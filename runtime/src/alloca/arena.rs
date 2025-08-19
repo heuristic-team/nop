@@ -3,7 +3,7 @@ use crate::alloca::ptr;
 pub trait Arena3 {
   fn new(start: ptr, size: usize) -> Self;
   
-  fn start(&self) -> ptr;
+  fn span_start(&self) -> ptr;
   
   fn cur(&self) -> ptr;
   

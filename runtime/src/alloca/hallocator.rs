@@ -115,7 +115,7 @@ impl<T: Object, U: Arena3> ArenaAllocator3<T, U> for HAllocator<T, U> {
     ref_arena.add(o.size());
     let ptr = ref_arena.cur();
     
-    if ptr == ref_arena.start() {
+    if ptr == ref_arena.span_start() {
       let mut block = self.block_by_ptr(ptr)
           .expect("hz");
       match block.slots.pop() {

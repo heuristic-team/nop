@@ -35,8 +35,8 @@ impl Arena3 for HedgeArena {
     }
   }
   
-  fn start(&self) -> ptr {
-    self.start
+  fn span_start(&self) -> ptr {
+    self.span_start
   }
   
   fn cur(&self) -> ptr {
@@ -134,7 +134,7 @@ impl PartialOrd<Self> for HedgeArena {
 impl Ord for HedgeArena {
   fn cmp(&self, other: &Self) -> std::cmp::Ordering {
     if self.how_much() == other.how_much() {
-      self.start().cmp(&other.start())
+      self.span_start().cmp(&other.span_start())
     } else {
       self.how_much().cmp(&other.how_much())
     }
