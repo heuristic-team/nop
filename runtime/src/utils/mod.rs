@@ -1,5 +1,5 @@
-mod treeheap;
+pub mod object;
 
 pub type reg = usize;
 
-pub use treeheap::*;
+pub use object::*;

@@ -5,31 +5,12 @@ mod hedgearena;
 mod cfg;
 
 pub use hedgearena::HedgeArena;
-pub use hallocator::HAllocator;
+pub use hallocator::{HAllocator, IndexArena};
 pub use arena::Arena3;
+pub use allocator::ArenaAllocator3;
 pub use cfg::Cfg;
 
 pub(crate) type ptr = usize;
-
-pub trait Object {
-  fn size(&self) -> usize;
-  fn get_bitset_of_ref(&self) -> &'static [u8];
-}
-
-pub struct ObjectImpl {
-  size: usize,
-  bitset: &'static [u8],
-}
-
-impl Object for ObjectImpl {
-  fn size(&self) -> usize {
-    self.size
-  }
-  
-  fn get_bitset_of_ref(&self) -> &'static [u8] {
-    self.bitset
-  }
-}
 
 #[cfg(test)]
 mod tests {
@@ -37,21 +18,8 @@ mod tests {
   use crate::alloca::cfg::Cfg;
   use crate::alloca::hallocator::HAllocator;
   use crate::alloca::hedgearena::HedgeArena;
+  use crate::utils::Object;
   use super::*;
-  
-  struct TestObj {
-    size: usize,
-  }
-  
-  impl Object for TestObj {
-    fn size(&self) -> usize {
-      self.size
-    }
-    
-    fn get_bitset_of_ref(&self) -> &'static [u8] {
-      todo!()
-    }
-  }
   
   fn config1() -> Cfg {
     Cfg::new(
@@ -68,14 +36,14 @@ mod tests {
   
   #[test]
   fn create_allocator() {
-    let aa: HAllocator<TestObj, HedgeArena> = HAllocator::new(config1());
+    let aa: HAllocator<HedgeArena> = HAllocator::new(config1());
   }
   
   #[test]
   fn first_alloc() {
-    let mut aa: HAllocator<TestObj, HedgeArena> = HAllocator::new(config1());
+    let mut aa: HAllocator<HedgeArena> = HAllocator::new(config1());
     
-    let inst_1 = TestObj { size: 24 };
+    let inst_1 = Object { size: 24, bitset: &[0] };
     unsafe {
       let (ptr, pred) = aa.alloc(&inst_1);
       assert_eq!(pred, false);
@@ -87,10 +55,10 @@ mod tests {
   
   #[test]
   fn alloc2() {
-    let mut aa: HAllocator<TestObj, HedgeArena> = HAllocator::new(config1());
+    let mut aa: HAllocator<HedgeArena> = HAllocator::new(config1());
     
-    let inst_1 = TestObj { size: 1024 };
-    let inst_2 = TestObj { size: 512 };
+    let inst_1 = Object { size: 1024, bitset: &[0] };
+    let inst_2 = Object { size: 512, bitset: &[0] };
     unsafe {
       let (ptr, _) = aa.alloc(&inst_1);
       assert_ne!(ptr, 0);

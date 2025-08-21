@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(ptr_as_ref_unchecked)]
 
 mod alloca;
 mod nni;
@@ -8,17 +9,29 @@ mod gc;
 
 use std::sync::Arc;
 use utils::*;
+use crate::alloca::Cfg;
+use crate::alloca::ArenaAllocator3;
 
 static mut THREADS: Option<Arc<threads::Threads>> = None;
 
-static mut GC: Option<gc::Gc<alloca::ObjectImpl, alloca::HedgeArena>> = None;
+static mut GC: Option<gc::Gc<alloca::HedgeArena>> = None;
+
 
 pub extern "C" fn init(main: fn(reg, reg, reg, reg, reg), stw: &'static bool) {
   unsafe {
     let athreads = Arc::new(threads::Threads::new(stw));
     THREADS = Some(athreads.clone());
     
-    GC = Some(gc::Gc::new(athreads, 8 << 40));
+    GC = Some(gc::Gc::new(athreads, Cfg::new(
+      37,
+      26,
+      12,
+      20,
+      0,
+      0,
+      |size| {
+        size / 64
+      })));
     
     THREADS.as_mut()
         .unwrap()
@@ -30,10 +43,10 @@ pub extern "C" fn init(main: fn(reg, reg, reg, reg, reg), stw: &'static bool) {
   }
 }
 
-pub extern "C" fn alloc(t: &dyn alloca::Object) -> alloca::ptr {
+pub extern "C" fn alloc(t: &Object) -> alloca::ptr {
   unsafe {
     let gc = GC.as_mut().expect("gc is none (alloc)");
-    let (ptr, heap_is_overflow) = gc.alloca.alloc(t);;
+    let (ptr, heap_is_overflow) = gc.alloca.alloc(t);
     if heap_is_overflow {
       gc.notify_master();
     }

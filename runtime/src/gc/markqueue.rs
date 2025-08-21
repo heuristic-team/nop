@@ -1,31 +1,31 @@
 use std::cmp::min;
 pub use crate::alloca::*;
 
-pub enum MarkQueueElement<'a, T: Arena3> {
-  arena(&'a mut T),
+pub enum MarkQueueElement {
+  arena(ptr), // start of arena lol
   object(ptr),
   End
 }
 
-pub struct MarkQueue<'a, T: Arena3> {
-  queue: std::sync::RwLock<Vec<MarkQueueElement<'a, T>>>,
+pub struct MarkQueue{
+  queue: std::sync::RwLock<Vec<MarkQueueElement>>,
 }
 
-impl<'a, T: Arena3> MarkQueue<'a, T> {
-  pub fn new() -> MarkQueue<'a, T> {
+impl MarkQueue {
+  pub fn new() -> MarkQueue {
     Self {
       queue: std::sync::RwLock::new(vec![]),
     }
   }
   
-  pub fn pushn(&mut self, elements: &mut Vec<MarkQueueElement<'a, T>>) {
+  pub fn pushn(&mut self, elements: &mut Vec<MarkQueueElement>) {
     self.queue
         .write()
-        .expect("pushn")
-        .extend(elements);
+        .expect("pushn1")
+        .append(elements);
   }
   
-  pub fn popn(&mut self, n: usize) -> Vec<MarkQueueElement<'a, T>> {
+  pub fn popn(&mut self, n: usize) -> Vec<MarkQueueElement> {
     let mut lock = self.queue
         .write()
         .expect("popn");
@@ -37,9 +37,10 @@ impl<'a, T: Arena3> MarkQueue<'a, T> {
     result
   }
   
-  pub fn check(&self) -> Option<&MarkQueueElement<'a, T>> {
-    self.queue.read()
-        .expect("check")
-        .last()
+  pub fn last_is_end(&self) -> bool {
+    match self.queue.read().expect("last_is_end").last() {
+      Some(MarkQueueElement::End) => true,
+      _ => false
+    }
   }
 }
