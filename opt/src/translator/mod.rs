@@ -64,11 +64,11 @@ pub struct ASTTranslator {
 }
 
 impl ASTTranslator {
-    fn get_temp(&mut self, tp: Type) -> Dest {
-        Rc::new(RefCell::new(Var::new(self.namer.name_temp(), tp.into())))
+    fn get_temp(&mut self, tp: Rc<Type>) -> Dest {
+        Rc::new(RefCell::new(Var::new(self.namer.name_temp(), tp)))
     }
 
-    fn translate_num(&mut self, func: &mut Func, value: u64, tp: Type) -> Dest {
+    fn translate_num(&mut self, func: &mut Func, value: u64, tp: Rc<Type>) -> Dest {
         let dest = self.get_temp(tp);
         let imm = Const::create_int(value);
         let instruction = Instr::create_const(dest.clone(), imm);
@@ -77,7 +77,7 @@ impl ASTTranslator {
     }
 
     fn translate_bool(&mut self, func: &mut Func, value: bool) -> Dest {
-        let dest = self.get_temp(Type::Bool);
+        let dest = self.get_temp(Rc::new(Type::Bool));
         let imm = Const::create_bool(value);
         let instruction = Instr::create_const(dest.clone(), imm);
         func.add_to_current_block(instruction);
@@ -98,7 +98,7 @@ impl ASTTranslator {
         callee: Box<Expr>,
         args: Vec<Expr>,
     ) -> Dest {
-        let dest = self.get_temp((*tp).clone()); // FIXME: WTF? will change later.
+        let dest = self.get_temp(tp);
 
         let label = self.translate_expr(func, defs, *callee);
 
@@ -141,7 +141,7 @@ impl ASTTranslator {
         let new_block_name = self.namer.name_temp();
         func.start_block(new_block_name);
 
-        val.unwrap_or(self.get_temp(Type::Unit))
+        val.unwrap_or(self.get_temp(Rc::new(Type::Unit)))
     }
 
     fn translate_binary(
@@ -154,7 +154,7 @@ impl ASTTranslator {
     ) -> Dest {
         let lhs = self.translate_expr(func, defs, *lhs);
         let rhs = self.translate_expr(func, defs, *rhs);
-        let dest = self.get_temp((*lhs.borrow().tp).clone()); // FIXME
+        let dest = self.get_temp(lhs.borrow().tp.clone());
         match op {
             BinaryOp::Assign => {
                 assert!(defs.contains_key(&lhs.borrow().name));
@@ -275,7 +275,7 @@ impl ASTTranslator {
 
     fn translate_expr(&mut self, func: &mut Func, defs: &mut Defs, expr: Expr) -> Dest {
         match expr {
-            Expr::Num { tp, value } => self.translate_num(func, value.value, (*tp).clone()),
+            Expr::Num { tp, value } => self.translate_num(func, value.value, tp),
             Expr::Ref { name, .. } => self.translate_ref(defs, name.value),
             Expr::Bool { value, .. } => self.translate_bool(func, value),
             Expr::Call {
