@@ -29,7 +29,7 @@ impl Typed for Op {
     fn get_type(&self) -> Type {
         match self {
             Self::Const(c) => c.get_type(),
-            Self::Variable(v) => v.get_type(),
+            Self::Variable(v) => v.borrow().get_type(),
         }
     }
 }

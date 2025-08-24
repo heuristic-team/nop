@@ -15,8 +15,7 @@ use crate::ir::{
 
 type Defs = HashMap<String, Dest>;
 
-pub trait Translator<Input> {
-    fn new() -> Self;
+pub trait Translator<Input>: Default {
     fn translate(&mut self, input: Input) -> Program;
 }
 
@@ -142,11 +141,7 @@ impl ASTTranslator {
         let new_block_name = self.namer.name_temp();
         func.start_block(new_block_name);
 
-        match val {
-            // TODO: think of how to unkostilit this sheise
-            None => Rc::new(RefCell::new(Var::new("".to_string(), Type::Unit))),
-            Some(var) => var,
-        }
+        val.unwrap_or(self.get_temp(Type::Unit))
     }
 
     fn translate_binary(
@@ -162,6 +157,7 @@ impl ASTTranslator {
         let dest = self.get_temp(lhs.borrow().tp.clone());
         match op {
             BinaryOp::Assign => {
+                assert!(defs.contains_key(&lhs.borrow().name));
                 defs.insert(lhs.borrow().name.clone(), rhs.clone());
                 rhs
             }
@@ -191,24 +187,26 @@ impl ASTTranslator {
         body: Box<Expr>,
     ) -> Dest {
         let (cond_name, loop_name, end_name) = self.namer.loop_names();
+        let prev_block = func.current_block().unwrap().clone();
         let cond_block = func.start_block(cond_name);
         let jmp = Instr::create_jmp(Label::block_label(cond_block.clone()));
-        func.get_nth_last_block(2)
-            .unwrap()
-            .borrow_mut()
-            .add_instr(jmp);
+
+        prev_block.borrow_mut().add_instr(jmp);
 
         let cond = self.translate_expr(func, defs, *cond);
 
         let loop_block = func.start_block(loop_name);
+
         let body = self.translate_expr(func, defs, *body); // probably return on break or some shit
         let jmp = Instr::create_jmp(Label::block_label(cond_block.clone()));
         func.add_to_current_block(jmp);
+
         let end_block = func.start_block(end_name);
         let loop_label = Label::block_label(loop_block);
         let end_label = Label::block_label(end_block);
         let branch = Instr::create_br(loop_label, end_label, cond);
         cond_block.borrow_mut().add_instr(branch);
+
         body
     }
 
@@ -230,46 +228,41 @@ impl ASTTranslator {
 
         let ret = self.translate_expr(func, defs, *if_true);
 
-        if if_false.is_some() {
+        let false_defined = if_false.is_some();
+
+        if let Some(false_expr) = if_false {
             let false_block = func.start_block(false_name);
 
             let true_label = Label::block_label(true_block.clone());
             let false_label = Label::block_label(false_block);
 
-            let branch = Instr::create_br(true_label, false_label, cond);
+            let branch = Instr::create_br(true_label, false_label, cond.clone());
 
             cond_block.borrow_mut().add_instr(branch);
-            // so here we should do SOMETHING about the fact that it
-            // could return values too.
-            self.translate_expr(func, defs, *if_false.unwrap());
 
-            let current_block = func.current_block().unwrap().clone();
-
-            let out_block = func.start_block(out_name);
-
-            let out_label = Label::block_label(out_block);
-
-            true_block
-                .borrow_mut()
-                .add_instr(Instr::create_jmp(out_label.clone()));
-
-            current_block
-                .borrow_mut()
-                .add_instr(Instr::create_jmp(out_label));
-
-            ret // YEA SO HERE WE SHOULD RETURN SOMETHING ELSE
-        } else {
-            let out_block = func.start_block(out_name);
-            let true_label = Label::block_label(true_block.clone());
-            let out_label = Label::block_label(out_block);
-            let branch = Instr::create_br(true_label, out_label.clone(), cond);
-
-            cond_block.borrow_mut().add_instr(branch);
-            true_block
-                .borrow_mut()
-                .add_instr(Instr::create_jmp(out_label));
-            ret
+            let false_var = self.translate_expr(func, defs, *false_expr);
+            false_var.borrow_mut().name = ret.borrow().name.clone();
         }
+
+        let fblock = func.current_block().unwrap().clone();
+
+        let outer_block = func.start_block(out_name);
+
+        let out_label = Label::block_label(outer_block);
+
+        true_block
+            .borrow_mut()
+            .add_instr(Instr::Jmp(out_label.clone()));
+
+        if !false_defined {
+            let true_label = Label::block_label(true_block.clone());
+            let br = Instr::create_br(true_label, out_label, cond);
+            cond_block.borrow_mut().add_instr(br);
+        } else {
+            fblock.borrow_mut().add_instr(Instr::Jmp(out_label));
+        }
+
+        ret
     }
 
     fn translate_block(&mut self, func: &mut Func, defs: &mut Defs, body: Vec<Expr>) -> Dest {
@@ -333,12 +326,15 @@ impl ASTTranslator {
     }
 }
 
-impl Translator<AST> for ASTTranslator {
-    fn new() -> Self {
+impl Default for ASTTranslator {
+    fn default() -> Self {
         Self {
             namer: Namer::new(),
         }
     }
+}
+
+impl Translator<AST> for ASTTranslator {
     fn translate(&mut self, input: AST) -> Program {
         let defs: Defs = input
             .iter()

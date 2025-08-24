@@ -34,7 +34,7 @@ fn main() {
                     decl.print();
                 }
 
-                let mut translator = ASTTranslator::new();
+                let mut translator = ASTTranslator::default();
                 let program = translator.translate(ast);
                 println!("{}", program);
                 // TODO: pass AST to translator

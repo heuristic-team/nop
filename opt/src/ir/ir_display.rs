@@ -25,7 +25,7 @@ impl Display for Func {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "fn {}: ", self.name)?;
         for param in &self.params {
-            write!(f, "{} {} -> ", param.name, param.tp)?;
+            write!(f, "{} {} -> ", param.borrow().name, param.borrow().tp)?;
         }
         writeln!(f, "{}", self.tp)?;
         for block in &self.blocks {
@@ -101,13 +101,21 @@ impl Display for Instr {
                 write!(
                     f,
                     "branch {}, true: {}, false: {}",
-                    cond, true_branch, false_branch
+                    cond.borrow(),
+                    true_branch,
+                    false_branch
                 )
             }
             Self::Call { func, dest, args } => {
-                write!(f, "{} = {} call {}", dest.borrow(), self.get_type(), func)?;
+                write!(
+                    f,
+                    "{} = {} call {}",
+                    dest.borrow(),
+                    self.get_type(),
+                    func.borrow()
+                )?;
                 for arg in args {
-                    write!(f, ", {}", arg)?;
+                    write!(f, ", {}", arg.borrow())?;
                 }
                 Ok(())
             }
@@ -153,7 +161,7 @@ impl Display for Const {
 impl Display for Op {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Variable(var) => write!(fmt, "{}", var),
+            Self::Variable(var) => write!(fmt, "{}", var.borrow()),
             Self::Const(c) => write!(fmt, "{}", c),
         }
     }
