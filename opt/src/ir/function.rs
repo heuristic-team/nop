@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::ir::basic_block::BasicBlock;
 use frontend::typesystem::Type;
 
-use super::{Control, instr::Instr, operand::Var};
+use super::{Control, Dest, instr::Instr, operand::Var};
 
 /// Represents function inside IR.
 ///
@@ -17,7 +17,7 @@ pub struct Func {
     pub name: String,
     pub tp: Rc<Type>,
     pub blocks: Vec<Control<BasicBlock>>,
-    pub params: Vec<Rc<Var>>,
+    pub params: Vec<Dest>,
 }
 
 impl Func {
@@ -25,6 +25,15 @@ impl Func {
         let block = Rc::new(RefCell::new(BasicBlock::empty(name)));
         self.blocks.push(block.clone());
         block
+    }
+
+    pub fn get_nth_last_block(&mut self, index: usize) -> Option<&mut Control<BasicBlock>> {
+        let len = self.blocks.len() - index;
+        self.blocks.get_mut(len)
+    }
+
+    pub fn current_block(&mut self) -> Option<&mut Control<BasicBlock>> {
+        self.blocks.last_mut()
     }
 
     pub fn pop_block(&mut self) -> Option<Control<BasicBlock>> {
@@ -50,7 +59,7 @@ impl Func {
         name: String,
         tp: Rc<Type>,
         blocks: Vec<Control<BasicBlock>>,
-        params: Vec<Rc<Var>>,
+        params: Vec<Dest>,
     ) -> Self {
         Self {
             name,
@@ -81,7 +90,7 @@ impl Func {
     /// Adds parameter to this function.
     ///
     /// Returns mutable reference to this function for `Builder` pattern.
-    pub fn add_parameter(&mut self, param: Rc<Var>) -> &mut Self {
+    pub fn add_parameter(&mut self, param: Dest) -> &mut Self {
         self.params.push(param);
         self
     }
