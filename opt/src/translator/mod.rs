@@ -270,7 +270,7 @@ impl ASTTranslator {
         body.into_iter()
             .map(|expr| self.translate_expr(func, defs, expr))
             .last()
-            .unwrap() // probably blows up on empty block have to test and fix if so.
+            .unwrap_or(self.get_temp(Rc::new(Type::Unit)))
     }
 
     fn translate_expr(&mut self, func: &mut Func, defs: &mut Defs, expr: Expr) -> Dest {
