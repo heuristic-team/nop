@@ -40,11 +40,11 @@ impl Typed for Instr {
             Self::Jmp(_) => Type::Unit,
             Self::Br { .. } => Type::Unit,
             Self::Ret(_) => Type::Unit,
-            Self::Binary { dest, .. } => dest.get_type(),
-            Self::Const { dest, .. } => dest.get_type(),
-            Self::Call { dest, .. } => dest.get_type(),
+            Self::Binary { dest, .. } => dest.borrow().get_type(),
+            Self::Const { dest, .. } => dest.borrow().get_type(),
+            Self::Call { dest, .. } => dest.borrow().get_type(),
             Self::Cmp { dest, .. } => {
-                assert!(dest.get_type() == Type::Bool);
+                assert!(dest.borrow().get_type() == Type::Bool);
                 Type::Bool
             }
         }

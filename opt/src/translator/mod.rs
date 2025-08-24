@@ -1,4 +1,5 @@
-use std::{collections::HashMap, fmt::format, rc::Rc};
+use crate::ir::Dest;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use frontend::{
     ast::{AST, BinaryOp, Expr, FnDecl},
@@ -12,7 +13,7 @@ use crate::ir::{
     program::Program,
 };
 
-type Defs = HashMap<String, Rc<Var>>;
+type Defs = HashMap<String, Dest>;
 
 pub trait Translator<Input> {
     fn new() -> Self;
@@ -64,11 +65,11 @@ pub struct ASTTranslator {
 }
 
 impl ASTTranslator {
-    fn get_temp(&mut self, tp: Type) -> Rc<Var> {
-        Rc::new(Var::new(self.namer.name_temp(), tp))
+    fn get_temp(&mut self, tp: Type) -> Dest {
+        Rc::new(RefCell::new(Var::new(self.namer.name_temp(), tp)))
     }
 
-    fn translate_num(&mut self, func: &mut Func, value: u64, tp: Type) -> Rc<Var> {
+    fn translate_num(&mut self, func: &mut Func, value: u64, tp: Type) -> Dest {
         let dest = self.get_temp(tp);
         let imm = Const::create_int(value);
         let instruction = Instr::create_const(dest.clone(), imm);
@@ -76,7 +77,7 @@ impl ASTTranslator {
         dest
     }
 
-    fn translate_bool(&mut self, func: &mut Func, value: bool) -> Rc<Var> {
+    fn translate_bool(&mut self, func: &mut Func, value: bool) -> Dest {
         let dest = self.get_temp(Type::Bool);
         let imm = Const::create_bool(value);
         let instruction = Instr::create_const(dest.clone(), imm);
@@ -84,7 +85,7 @@ impl ASTTranslator {
         dest
     }
 
-    fn translate_ref(&mut self, defs: &Defs, name: String) -> Rc<Var> {
+    fn translate_ref(&mut self, defs: &Defs, name: String) -> Dest {
         // prob have to check there but i believe in sema(and that
         // i didn't fuck up anywhere myself).
         defs.get(&name).unwrap().clone()
@@ -97,12 +98,12 @@ impl ASTTranslator {
         tp: Type,
         callee: Box<Expr>,
         args: Vec<Expr>,
-    ) -> Rc<Var> {
+    ) -> Dest {
         let dest = self.get_temp(tp);
 
         let label = self.translate_expr(func, defs, *callee);
 
-        let args: Vec<Rc<Var>> = args
+        let args: Vec<Dest> = args
             .into_iter()
             .map(|arg| self.translate_expr(func, defs, arg))
             .collect();
@@ -120,7 +121,7 @@ impl ASTTranslator {
         defs: &mut Defs,
         name: String,
         value: Box<Expr>,
-    ) -> Rc<Var> {
+    ) -> Dest {
         let expr = self.translate_expr(func, defs, *value);
         defs.insert(name, expr.clone());
         expr
@@ -131,7 +132,7 @@ impl ASTTranslator {
         func: &mut Func,
         defs: &mut Defs,
         value: Option<Box<Expr>>,
-    ) -> Rc<Var> {
+    ) -> Dest {
         let val = value.map(|expr| self.translate_expr(func, defs, *expr));
 
         let ret = Instr::create_ret(val.clone());
@@ -143,7 +144,7 @@ impl ASTTranslator {
 
         match val {
             // TODO: think of how to unkostilit this sheise
-            None => Rc::new(Var::new("".to_string(), Type::Unit)),
+            None => Rc::new(RefCell::new(Var::new("".to_string(), Type::Unit))),
             Some(var) => var,
         }
     }
@@ -155,13 +156,13 @@ impl ASTTranslator {
         op: BinaryOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
-    ) -> Rc<Var> {
+    ) -> Dest {
         let lhs = self.translate_expr(func, defs, *lhs);
         let rhs = self.translate_expr(func, defs, *rhs);
-        let dest = self.get_temp(lhs.tp.clone());
+        let dest = self.get_temp(lhs.borrow().tp.clone());
         match op {
             BinaryOp::Assign => {
-                defs.insert(lhs.name.clone(), rhs.clone());
+                defs.insert(lhs.borrow().name.clone(), rhs.clone());
                 rhs
             }
             BinaryOp::Mul => {
@@ -188,7 +189,7 @@ impl ASTTranslator {
         defs: &mut Defs,
         cond: Box<Expr>,
         body: Box<Expr>,
-    ) -> Rc<Var> {
+    ) -> Dest {
         let (cond_name, loop_name, end_name) = self.namer.loop_names();
         let cond_block = func.start_block(cond_name);
         let jmp = Instr::create_jmp(Label::block_label(cond_block.clone()));
@@ -218,7 +219,7 @@ impl ASTTranslator {
         cond: Box<Expr>,
         if_true: Box<Expr>,
         if_false: Option<Box<Expr>>,
-    ) -> Rc<Var> {
+    ) -> Dest {
         let cond = self.translate_expr(func, defs, *cond);
 
         let (true_name, false_name, out_name) = self.namer.if_names();
@@ -271,14 +272,14 @@ impl ASTTranslator {
         }
     }
 
-    fn translate_block(&mut self, func: &mut Func, defs: &mut Defs, body: Vec<Expr>) -> Rc<Var> {
+    fn translate_block(&mut self, func: &mut Func, defs: &mut Defs, body: Vec<Expr>) -> Dest {
         body.into_iter()
             .map(|expr| self.translate_expr(func, defs, expr))
             .last()
             .unwrap() // probably blows up on empty block have to test and fix if so.
     }
 
-    fn translate_expr(&mut self, func: &mut Func, defs: &mut Defs, expr: Expr) -> Rc<Var> {
+    fn translate_expr(&mut self, func: &mut Func, defs: &mut Defs, expr: Expr) -> Dest {
         match expr {
             Expr::Num { tp, value } => self.translate_num(func, value.value, tp),
             Expr::Ref { name, .. } => self.translate_ref(defs, name.value),
@@ -319,9 +320,10 @@ impl ASTTranslator {
     fn translate_function(&mut self, func: FnDecl, mut defs: Defs) -> Func {
         let mut ir_func = Func::empty(func.name.value, func.tp.value);
         for param in func.params.into_iter() {
-            let param_var = Rc::new(Var::new(param.name.value, param.tp.value));
+            let param_var = Rc::new(RefCell::new(Var::new(param.name.value, param.tp.value)));
             ir_func.add_parameter(param_var.clone());
-            defs.insert(param_var.name.clone(), param_var);
+            let name = param_var.borrow().name.clone();
+            defs.insert(name, param_var);
         }
         self.namer.reset();
         ir_func.start_block(self.namer.name_temp());
@@ -343,7 +345,10 @@ impl Translator<AST> for ASTTranslator {
             .map(|(name, func)| {
                 (
                     name.clone(),
-                    Rc::new(Var::new(func.name.value.clone(), func.tp.value.clone())),
+                    Rc::new(RefCell::new(Var::new(
+                        func.name.value.clone(),
+                        func.tp.value.clone(),
+                    ))),
                 )
             })
             .collect();

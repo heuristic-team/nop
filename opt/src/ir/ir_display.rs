@@ -73,14 +73,14 @@ impl Display for Instr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ret(opt) => match opt {
-                Some(op) => write!(f, "ret {} {}", op.get_type(), op),
+                Some(op) => write!(f, "ret {} {}", op.borrow().get_type(), op.borrow()),
                 None => write!(f, "ret _"),
             },
             Self::Cmp { tp, dest, lhs, rhs } => {
                 write!(
                     f,
                     "{} = {} cmp {} {} {}",
-                    dest,
+                    dest.borrow(),
                     tp,
                     self.get_type(),
                     lhs,
@@ -88,7 +88,7 @@ impl Display for Instr {
                 )
             }
             Self::Const { dest, imm } => {
-                write!(f, "{} = {} const {}", dest, self.get_type(), imm)
+                write!(f, "{} = {} const {}", dest.borrow(), self.get_type(), imm)
             }
             Self::Jmp(label) => {
                 write!(f, "jmp {}", label)
@@ -105,14 +105,22 @@ impl Display for Instr {
                 )
             }
             Self::Call { func, dest, args } => {
-                write!(f, "{} = {} call {}", dest, self.get_type(), func)?;
+                write!(f, "{} = {} call {}", dest.borrow(), self.get_type(), func)?;
                 for arg in args {
                     write!(f, ", {}", arg)?;
                 }
                 Ok(())
             }
             Self::Binary { tp, dest, lhs, rhs } => {
-                write!(f, "{} = {} {} {}, {}", dest, self.get_type(), tp, lhs, rhs)
+                write!(
+                    f,
+                    "{} = {} {} {}, {}",
+                    dest.borrow(),
+                    self.get_type(),
+                    tp,
+                    lhs,
+                    rhs
+                )
             }
         }
     }

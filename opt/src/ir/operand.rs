@@ -1,23 +1,23 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use frontend::typesystem::Type;
 
-use super::{Control, basic_block::BasicBlock, function::Func};
+use super::{Control, Dest, basic_block::BasicBlock, function::Func};
 
 /// Standard operand of the IR instruction.
 ///
 /// It always is either constant or variable.
 pub enum Op {
-    Variable(Rc<Var>),
+    Variable(Dest),
     Const(Const),
 }
 
 impl Op {
     /// Creates variable operand with a specified type.
     pub fn create_var(name: String, tp: Type) -> Self {
-        Self::Variable(Rc::new(Var::new(name, tp)))
+        Self::Variable(Rc::new(RefCell::new(Var::new(name, tp))))
     }
 
     /// Creates constant integer operand.
@@ -33,7 +33,7 @@ impl Op {
     /// Checks whether this instance is of integer type.
     pub fn is_int(&self) -> bool {
         match self {
-            Self::Variable(v) => v.tp == Type::I64, // TODO: do normal check for types
+            Self::Variable(v) => v.borrow().tp == Type::I64, // TODO: do normal check for types
             Self::Const(Const::Int(_)) => true,
             _ => false,
         }
@@ -42,7 +42,7 @@ impl Op {
     /// Checks whether this instance is of boolean type.
     pub fn is_bool(&self) -> bool {
         match self {
-            Self::Variable(v) => v.tp == Type::Bool, // TODO: do normal check for types
+            Self::Variable(v) => v.borrow().tp == Type::Bool, // TODO: do normal check for types
             Self::Const(Const::Bool(_)) => true,
             _ => false,
         }
