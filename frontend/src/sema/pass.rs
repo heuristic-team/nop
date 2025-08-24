@@ -1,11 +1,13 @@
 use super::Res;
 
+/// Trait for all semantic analyser passes, providing an interface to run and chain them.
 pub trait Pass: Sized {
     type Input;
     type Output;
 
     fn run(&mut self, input: Self::Input) -> Res<Self::Output>;
 
+    /// Create a pass that combines `self` and `other`. The second pass is ran iff the first pass returned `Ok` or `Problematic`. In the latter case all diagnostics from `self` are preserved.
     fn and_then<O>(self, other: O) -> impl Pass<Input = Self::Input, Output = O::Output>
     where
         O: Pass<Input = Self::Output>,
@@ -14,7 +16,7 @@ pub trait Pass: Sized {
     }
 }
 
-pub struct PassComposition<P1, P2>
+struct PassComposition<P1, P2>
 where
     P1: Pass,
     P2: Pass<Input = P1::Output>,

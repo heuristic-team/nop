@@ -1,5 +1,12 @@
 use crate::{Diagnostic, lexer::Span};
 
+pub type Res<T> = Result<T, ParseError>;
+
+/// Custom type for parse error.
+///
+/// Should not be created manually in *most* of the cases, `get` or `get_mut` should produce these errors. Exceptions are some tricky situations like trailing comma.
+///
+/// Has an implementation of `Into<Diagnostic>` to be passed to the driver and printed.
 #[derive(Debug)]
 pub struct ParseError {
     pub expected: Vec<String>,
@@ -15,8 +22,15 @@ impl ParseError {
             span,
         }
     }
+
+    /// Replace `expected` with given list.
+    pub fn expect(mut self, expected: Vec<String>) -> Self {
+        self.expected = expected;
+        self
+    }
 }
 
+/// Create a prettified message from a list of expected items and the actual item.
 fn format_message<E: AsRef<str>>(expected: &[E], actual: &str) -> String {
     let mut res = String::new();
 
@@ -49,5 +63,3 @@ impl Into<Diagnostic> for ParseError {
         Diagnostic::new(format_message(&self.expected, &self.actual), self.span)
     }
 }
-
-pub type Res<T> = Result<T, ParseError>;

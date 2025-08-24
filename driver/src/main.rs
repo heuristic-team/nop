@@ -1,6 +1,6 @@
-use frontend::lexer::lex;
 use frontend::parser::Parser;
 use frontend::sema;
+use frontend::{lexer::lex, print::PrettyPrintable};
 
 mod cli;
 use cli::get_input;
@@ -21,23 +21,20 @@ fn main() {
 
     let parsed = Parser::new(tokens).parse();
     match parsed {
-        Ok(decls) => {
-            let ast_res = sema::run(decls);
+        Ok((fn_decls, type_decls)) => {
+            let sema_res = sema::run(fn_decls, type_decls);
 
-            if let Some(diags) = ast_res.get_diagnostics() {
+            if let Some(diags) = sema_res.inspect_diagnostics() {
                 diags.for_each(|d| print_error(&input, d));
             }
 
-            if let Some(ast) = ast_res.extract_value() {
+            if let Some(unit) = sema_res.extract_value() {
                 println!("post-sema AST:");
-                for decl in ast.values() {
-                    decl.print();
-                }
+                unit.0.print();
 
                 let mut translator = ASTTranslator::default();
-                let program = translator.translate(ast);
+                let program = translator.translate(unit.0);
                 println!("{}", program);
-                // TODO: pass AST to translator
             }
         }
         Err(err) => print_error(&input, &err.into()),

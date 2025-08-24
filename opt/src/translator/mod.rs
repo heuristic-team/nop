@@ -65,7 +65,7 @@ pub struct ASTTranslator {
 
 impl ASTTranslator {
     fn get_temp(&mut self, tp: Type) -> Dest {
-        Rc::new(RefCell::new(Var::new(self.namer.name_temp(), tp)))
+        Rc::new(RefCell::new(Var::new(self.namer.name_temp(), tp.into())))
     }
 
     fn translate_num(&mut self, func: &mut Func, value: u64, tp: Type) -> Dest {
@@ -94,11 +94,11 @@ impl ASTTranslator {
         &mut self,
         func: &mut Func,
         defs: &mut Defs,
-        tp: Type,
+        tp: Rc<Type>,
         callee: Box<Expr>,
         args: Vec<Expr>,
     ) -> Dest {
-        let dest = self.get_temp(tp);
+        let dest = self.get_temp((*tp).clone()); // FIXME: WTF? will change later.
 
         let label = self.translate_expr(func, defs, *callee);
 
@@ -154,7 +154,7 @@ impl ASTTranslator {
     ) -> Dest {
         let lhs = self.translate_expr(func, defs, *lhs);
         let rhs = self.translate_expr(func, defs, *rhs);
-        let dest = self.get_temp(lhs.borrow().tp.clone());
+        let dest = self.get_temp((*lhs.borrow().tp).clone()); // FIXME
         match op {
             BinaryOp::Assign => {
                 assert!(defs.contains_key(&lhs.borrow().name));
@@ -176,6 +176,7 @@ impl ASTTranslator {
                 func.add_to_current_block(sub);
                 dest
             }
+            _ => todo!(), // Implement logical and comparison BinaryOp
         }
     }
 
@@ -274,7 +275,7 @@ impl ASTTranslator {
 
     fn translate_expr(&mut self, func: &mut Func, defs: &mut Defs, expr: Expr) -> Dest {
         match expr {
-            Expr::Num { tp, value } => self.translate_num(func, value.value, tp),
+            Expr::Num { tp, value } => self.translate_num(func, value.value, (*tp).clone()),
             Expr::Ref { name, .. } => self.translate_ref(defs, name.value),
             Expr::Bool { value, .. } => self.translate_bool(func, value),
             Expr::Call {
@@ -295,6 +296,7 @@ impl ASTTranslator {
                 on_false,
                 ..
             } => self.translate_if(func, defs, cond, on_true, on_false),
+            Expr::MemberRef { tp, target, member } => todo!(),
         }
     }
 
@@ -311,7 +313,7 @@ impl ASTTranslator {
     }
 
     fn translate_function(&mut self, func: FnDecl, mut defs: Defs) -> Func {
-        let mut ir_func = Func::empty(func.name.value, func.tp.value);
+        let mut ir_func = Func::empty(func.name.value, func.return_type.value);
         for param in func.params.into_iter() {
             let param_var = Rc::new(RefCell::new(Var::new(param.name.value, param.tp.value)));
             ir_func.add_parameter(param_var.clone());
@@ -343,7 +345,7 @@ impl Translator<AST> for ASTTranslator {
                     name.clone(),
                     Rc::new(RefCell::new(Var::new(
                         func.name.value.clone(),
-                        func.tp.value.clone(),
+                        func.return_type.value.clone(),
                     ))),
                 )
             })
