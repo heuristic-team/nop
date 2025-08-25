@@ -46,7 +46,7 @@ impl<U: Arena3> HAllocator<U> {
         for tier in 0..self.count_of_tiers {
             if (self.max_object_size_by_tier)(tier) >= size {
                 let index = self.blocks.len();
-                let mut new_block = HedgeBlock::new(
+                let new_block = HedgeBlock::new(
                     self.start + (index << self.log_block_size),
                     1 << self.log_block_size,
                     self.log_start_arena_size + tier * self.step_arena_size,
@@ -81,18 +81,28 @@ impl<U: Arena3> HAllocator<U> {
         }
         unreachable!();
     }
-
+    
     fn find(&mut self, size: usize) -> Option<&mut U> {
         let tier = self.arena_tier_by_size(size);
-        for num_of_block in self.num_of_blocks_by_tier[tier].iter() {
-            let mut block = &mut self.blocks[*num_of_block];
-            if block.current.is_some() {
-                Some(&mut block.items[block.current.unwrap().num_of_arena]);
+        let mut found = None;
+        
+        for &num_of_block in &self.num_of_blocks_by_tier[tier] {
+            let block = &self.blocks[num_of_block];
+            if let Some(current) = block.current {
+                found = Some((num_of_block, current.num_of_arena));
+                break;
             }
         }
+        
+        if let Some((block_idx, arena_idx)) = found {
+            let block = &mut self.blocks[block_idx];
+            return Some(&mut block.items[arena_idx]);
+        }
+        
         None
     }
-
+    
+    
     fn for_each_arena<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut U),
@@ -169,14 +179,16 @@ impl<U: Arena3> ArenaAllocator3<U> for HAllocator<U> {
         let ptr = ref_arena.cur();
 
         ref_arena.add(real_size);
-        let cur = ref_arena.cur();
         let empty_space = ref_arena.how_much();
 
-        let block_of_arena = self.mut_block_by_ptr(cur).expect("something went wrong");
+        let block_of_arena = self.mut_block_by_ptr(ptr).expect("something went wrong");
 
-        if empty_space < block_of_arena.tier {
+        if empty_space < block_of_arena.max_object_size {
             block_of_arena.active.push(block_of_arena.current.unwrap());
             block_of_arena.current = block_of_arena.archive.pop();
+            if block_of_arena.current.is_some() {
+                block_of_arena.items[block_of_arena.current.unwrap().num_of_arena].alive();
+            }
         }
 
         unsafe {
@@ -185,9 +197,9 @@ impl<U: Arena3> ArenaAllocator3<U> for HAllocator<U> {
 
         let used = self.used_memory.load(Ordering::Relaxed);
         if used > self.max_size {
-            (ptr, true)
+            (ptr + 8, true)
         } else {
-            (ptr, false)
+            (ptr + 8, false)
         }
     }
 
@@ -296,10 +308,13 @@ impl<U: Arena3> HedgeBlock<U> {
         let mut arenas = Vec::with_capacity(count);
         let mut archive = Vec::with_capacity(count);
         for i in 0..count {
-            arenas.push(U::new(start + (i << log_arena_size), 1 << log_arena_size));
+            arenas.push(U::new(
+                start + ((count - i - 1) << log_arena_size),
+                1 << log_arena_size,
+            ));
             archive.push(IndexArena {
                 num_of_block: number_of_block,
-                num_of_arena: i,
+                num_of_arena: count - i - 1, // literally for good debug
             })
         }
 

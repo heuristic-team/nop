@@ -33,6 +33,15 @@ mod tests {
             3,
         )))
     }
+    
+    fn test_alloc(object: &Object, aa: &mut HAllocator<HedgeArena>) {
+        unsafe {
+            let (ptr, pred) = aa.alloc(object);
+            assert_eq!(pred, false);
+            assert_ne!(ptr, 0);
+            std::ptr::write_bytes(ptr as *mut u8, 126, object.size / 8);
+        }
+    }
 
     #[test]
     fn create_allocator() {
@@ -41,40 +50,40 @@ mod tests {
 
     #[test]
     fn first_alloc() {
-        let mut aa: HAllocator<HedgeArena> = HAllocator::new(config1());
+        let mut aa= HAllocator::new(config1());
 
         let inst_1 = Object {
             size: 24,
             bitset: &[0],
         };
-        unsafe {
-            let (ptr, pred) = aa.alloc(&inst_1);
-            assert_eq!(pred, false);
-            assert_ne!(ptr, 0);
-            std::ptr::write_bytes(ptr as *mut u8, 126, inst_1.size / 8);
-        }
+        test_alloc(&inst_1, &mut aa);
     }
 
     #[test]
     fn alloc2() {
-        let mut aa: HAllocator<HedgeArena> = HAllocator::new(config1());
+        let mut aa = HAllocator::new(config1());
 
         let inst_1 = Object {
             size: 1024,
             bitset: &[0],
         };
+        test_alloc(&inst_1, &mut aa);
         let inst_2 = Object {
             size: 512,
             bitset: &[0],
         };
-        unsafe {
-            let (ptr, _) = aa.alloc(&inst_1);
-            assert_ne!(ptr, 0);
-            std::ptr::write_bytes(ptr as *mut u8, 126, inst_1.size / 8);
-
-            let (ptr, _) = aa.alloc(&inst_2);
-            assert_ne!(ptr, 0);
-            std::ptr::write_bytes(ptr as *mut u8, 126, inst_2.size / 8);
+        test_alloc(&inst_2, &mut aa);
+    }
+    
+    #[test]
+    fn alloc3() {
+        let mut aa = HAllocator::new(config1());
+        let inst = Object {
+            size: 48,
+            bitset: &[0],
+        };
+        for i in 0..100_000_000 {
+            test_alloc(&inst, &mut aa);
         }
     }
 }
