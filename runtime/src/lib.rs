@@ -22,7 +22,7 @@ pub extern "C" fn init(main: fn(reg, reg, reg, reg, reg), stw: &'static bool) {
     GC.get_or_init(|| {
         Mutex::new(gc::Gc::new(
             athreads,
-            &Cfg::new(37, 26, 12, 20, 0, 0, |size| size / 64, 3),
+            &Cfg::new(37, 26, 12, 20, 2, 1 << 20, |size| size / 64, 3),
         ))
     });
     THREADS

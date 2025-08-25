@@ -38,7 +38,7 @@ impl<U: Arena3> HAllocator<U> {
         if ptr < self.start || ptr >= self.start + (1 << self.log_capacity_size) {
             None
         } else {
-            Some(&mut self.blocks[ptr >> self.log_block_size])
+            Some(&mut self.blocks[(ptr - self.start) >> self.log_block_size])
         }
     }
 
