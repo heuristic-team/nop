@@ -1,39 +1,39 @@
 use crate::alloca::ptr;
 
 pub trait Arena3 {
-  fn new(start: ptr, size: usize) -> Self;
-  
-  fn span_start(&self) -> ptr;
-  
-  fn cur(&self) -> ptr;
-  
-  fn add(&mut self, size: usize);
-  
-  fn size(&self) -> usize;
-  
-  fn how_much(&self) -> usize;
-  
-  fn gray_map(&self) ->(ptr, usize);
-  
-  fn black_map(&self) ->(ptr, usize);
-  
-  fn clear_mark(&mut self);
-  
-  fn live(&self) -> bool;
-  
-  fn alive(&mut self);
-  
-  fn kill(&mut self);
-  
-  fn make_live(&mut self);
-  
-  fn temp_kill(&mut self);
-  
-  fn mark_gray(&mut self, ptr: ptr);
-  
-  fn mark_black(&mut self, ptr: ptr);
+    fn new(start: ptr, size: usize) -> Self;
 
-  fn fetch_and_add_in_queue(&mut self) -> bool;
-  
-  fn fetch_and_take_from_queue(&mut self) -> bool;
+    fn span_start(&self) -> ptr;
+
+    fn cur(&self) -> ptr;
+
+    fn add(&mut self, size: usize);
+
+    fn size(&self) -> usize;
+
+    fn how_much(&self) -> usize;
+
+    fn gray_map(&self) -> (ptr, usize);
+
+    fn black_map(&self) -> (ptr, usize);
+
+    fn clear_mark(&mut self);
+
+    fn live(&self) -> bool;
+
+    fn alive(&mut self);
+
+    fn kill(&mut self);
+
+    fn make_live(&mut self);
+
+    fn temp_kill(&mut self);
+
+    fn mark_gray(&mut self, ptr: ptr);
+
+    fn mark_black(&mut self, ptr: ptr);
+
+    fn fetch_and_add_in_queue(&mut self) -> bool;
+
+    fn fetch_and_take_from_queue(&mut self) -> bool;
 }
