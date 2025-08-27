@@ -13,22 +13,6 @@ use threads::ThreadPhase;
 use utils::object::Object;
 use utils::reg;
 
-// struct Arc<T>(Arc<RefCell<T>>);
-//
-// impl<T> Arc<T> {
-//     pub fn new(value: T) -> Arc<T> {
-//         Arc(Arc::new(RefCell::new(value)))
-//     }
-//
-//     pub fn borrow_mut(&self) -> RefMut<'_, T> {
-//         self.0.borrow_mut
-//     }
-//
-//     pub fn clone(&self) -> Arc<T> {
-//         Arc(self.0.clone())
-//     }
-// }
-
 pub struct Gc<U: Arena3 + Send + Sync + 'static> {
     pub alloca: Arc<Mutex<alloca::HAllocator<U>>>,
 
@@ -103,7 +87,9 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
                     let mut local_queue = VecDeque::new();
 
                     let count_for_scan = thread_root.len() / count + 1;
-                    for j in min(i * count_for_scan, thread_root.len())..thread_root.len() {
+                    let start_j = i * count_for_scan;
+                    let end_j = min(start_j + count_for_scan, thread_root.len());
+                    for j in start_j..end_j {
                         Self::mark_gray_el_from_ptr(
                             thread_alloca.clone(),
                             thread_root[j],
@@ -116,12 +102,12 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
                     }
 
                     'external: loop {
-                        while local_queue.len() > 0 {
+                        while !local_queue.is_empty() {
                             Self::mark(thread_alloca.clone(), local_queue.pop_front().unwrap());
                         }
 
                         local_queue = (*thread_mark_queue).popn(16);
-                        if local_queue.len() == 0 {
+                        if local_queue.is_empty() {
                             if thread_count_active_workers.fetch_sub(1, Ordering::SeqCst) == 1 {
                                 (*thread_mark_queue)
                                     .pushn(&mut VecDeque::from([MarkQueueElement::End]));
