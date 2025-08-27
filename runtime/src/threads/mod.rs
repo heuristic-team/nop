@@ -32,8 +32,8 @@ impl Threads {
         self.pool.append(func, r1, r2, r3, r4, r5);
     }
 
-    pub fn go_immut(&self, rbp: reg) {
-        self.pool.go_immut(rbp);
+    pub fn go_immut(&self, rbp: reg) -> usize {
+        self.pool.go_immut(rbp)
     }
 
     pub fn go_mut(&mut self) {

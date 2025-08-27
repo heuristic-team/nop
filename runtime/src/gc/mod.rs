@@ -1,12 +1,10 @@
 mod markqueue;
 
-use crate::alloca::IndexArena;
 use crate::{alloca, gc, threads, utils};
 use alloca::{Arena3, ArenaAllocator3, Cfg, ptr};
 use gc::markqueue::{MarkQueue, MarkQueueElement};
-use libc::abort;
-use std::cell::{RefCell, RefMut};
 use std::cmp::min;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -48,8 +46,6 @@ pub struct Gc<U: Arena3 + Send + Sync + 'static> {
     root_is_done: Arc<Mutex<bool>>,
     root_cv: Arc<std::sync::Condvar>,
 
-    work_is_done: Arc<Mutex<bool>>,
-    work_cv: Arc<std::sync::Condvar>,
     workers: Vec<JoinHandle<()>>,
     count_active_workers: Arc<AtomicUsize>,
 
@@ -74,9 +70,6 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
             root_is_done: Arc::new(Mutex::new(false)),
             root_cv: Arc::new(Default::default()),
 
-            work_is_done: Arc::new(Mutex::new(false)),
-            work_cv: Arc::new(Default::default()),
-
             workers: Vec::new(),
             count_active_workers: Arc::new(AtomicUsize::new(config.count_gc_workers)),
 
@@ -91,24 +84,23 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
         let mut workers = Vec::with_capacity(count);
         for i in 0..count {
             let thread_root_is_done = self.root_is_done.clone();
-            let thread_stw_cv = self.stw_cv.clone();
+            let thread_root_cv = self.root_cv.clone();
             let mut thread_root = self.root.clone();
             let thread_alloca = self.alloca.clone();
             let thread_mark_queue = self.mark_queue.clone().clone();
             let thread_count_active_workers = self.count_active_workers.clone();
-            let thread_stw_is_done = self.stw_is_done.clone();
-            let thread_work_is_done = self.work_is_done.clone();
-            let thread_work_cv = self.work_cv.clone();
+            let thread_mark_is_done = self.mark_is_done.clone();
+            let thread_mark_cv = self.mark_cv.clone();
             workers.push(thread::spawn(move || {
                 loop {
                     {
                         let mut root_is_done_flag = thread_root_is_done.lock().unwrap();
 
                         while !*root_is_done_flag {
-                            root_is_done_flag = thread_stw_cv.wait(root_is_done_flag).unwrap()
+                            root_is_done_flag = thread_root_cv.wait(root_is_done_flag).unwrap()
                         }
                     }
-                    let mut local_queue = vec![];
+                    let mut local_queue = VecDeque::new();
 
                     let count_for_scan = thread_root.len() / count + 1;
                     for j in min(i * count_for_scan, thread_root.len())..thread_root.len() {
@@ -118,64 +110,70 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
                             &mut local_queue,
                         );
 
-                        if !(local_queue.len() & 15 == 0) {
-                            // TODO: make somethink like cfg
+                        if local_queue.len() > /* TODO: add to cfg*/ 15 {
                             (*thread_mark_queue).pushn(&mut local_queue);
                         }
                     }
 
                     'external: loop {
                         while local_queue.len() > 0 {
-                            Self::mark(thread_alloca.clone(), local_queue.pop().unwrap());
+                            Self::mark(thread_alloca.clone(), local_queue.pop_front().unwrap());
                         }
 
                         local_queue = (*thread_mark_queue).popn(16);
                         if local_queue.len() == 0 {
                             if thread_count_active_workers.fetch_sub(1, Ordering::SeqCst) == 1 {
-                                (*thread_mark_queue).pushn(&mut vec![MarkQueueElement::End]);
-
+                                (*thread_mark_queue)
+                                    .pushn(&mut VecDeque::from([MarkQueueElement::End]));
                                 {
-                                    let mut root_is_done_flag = thread_stw_is_done.lock().unwrap();
+                                    let mut root_is_done_flag = thread_root_is_done.lock().unwrap();
                                     thread_root = Arc::new(Vec::new());
                                     *root_is_done_flag = false;
 
-                                    let mut work_is_done_flag = thread_work_is_done.lock().unwrap();
-                                    assert!(!*work_is_done_flag);
-                                    *work_is_done_flag = true;
+                                    let mut mark_is_done_flag = thread_mark_is_done.lock().unwrap();
+                                    assert!(!*mark_is_done_flag);
+                                    *mark_is_done_flag = true;
 
-                                    thread_work_cv.notify_all();
+                                    thread_mark_cv.notify_all();
                                 }
 
-                                break 'external; // for better reading
+                                break 'external;
                             } else {
                                 loop {
-                                    if (*thread_mark_queue).last_is_end() {
-                                        thread_count_active_workers.fetch_add(1, Ordering::SeqCst);
-                                        {
-                                            let mut work_is_done_flag =
-                                                thread_work_is_done.lock().unwrap();
-                                            while !*work_is_done_flag {
-                                                work_is_done_flag =
-                                                    thread_work_cv.wait(work_is_done_flag).unwrap()
+                                    match (*thread_mark_queue).last() {
+                                        Some(MarkQueueElement::End) => {
+                                            thread_count_active_workers
+                                                .fetch_add(1, Ordering::SeqCst);
+                                            {
+                                                let mut mark_is_done_flag =
+                                                    thread_mark_is_done.lock().unwrap();
+                                                while !*mark_is_done_flag {
+                                                    mark_is_done_flag = thread_mark_cv
+                                                        .wait(mark_is_done_flag)
+                                                        .unwrap()
+                                                }
                                             }
+                                            break 'external;
                                         }
-                                        break 'external;
-                                    } else {
-                                        local_queue = (*thread_mark_queue).popn(16);
-                                        break;
+                                        None => {}
+                                        _ => {
+                                            local_queue = (*thread_mark_queue).popn(16);
+                                            break;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    // TODO WORK
                 }
             }))
         }
     }
 
     pub fn go_gc(&mut self, rbp: reg) {
-        self.threads.lock().unwrap().go_immut(rbp);
+        if self.threads.lock().unwrap().go_immut(rbp) == 0 {
+            self.notify_master();
+        }
 
         let mut stw_is_done_flag = self.stw_is_done.lock().unwrap();
         while !*stw_is_done_flag {
@@ -193,6 +191,7 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
                     heap_is_done_flag = self.heap_cv.wait(heap_is_done_flag).unwrap()
                 }
             }
+            *self.heap_is_done.lock().unwrap() = false;
 
             let threads = self.threads.clone();
             let guard_threads = threads.lock().unwrap();
@@ -208,15 +207,14 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
                 }
             }
 
-            *self.stw_is_done.lock().unwrap() = true;
-            self.stw_cv.notify_all();
+            *self.root_is_done.lock().unwrap() = true;
+            self.root_cv.notify_all();
 
-            *self.heap_is_done.lock().unwrap() = false;
-
-            let mut work_is_done_flag = self.work_is_done.lock().unwrap();
-            while !*work_is_done_flag {
-                work_is_done_flag = self.work_cv.wait(work_is_done_flag).unwrap()
+            let mut mark_is_done_flag = self.mark_is_done.lock().unwrap();
+            while !*mark_is_done_flag {
+                mark_is_done_flag = self.mark_cv.wait(mark_is_done_flag).unwrap()
             }
+            // TODO SWEEP
         }
     }
 
@@ -230,9 +228,9 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
     }
 
     fn mark(mut alloca: Arc<Mutex<alloca::HAllocator<U>>>, el: MarkQueueElement) {
-        let mut local_queue = vec![];
+        let mut local_queue = VecDeque::new();
         match el {
-            MarkQueueElement::arena(ptr_on_arena) => {
+            MarkQueueElement::Arena(ptr_on_arena) => {
                 let mut alloca_guard = alloca.lock().unwrap();
                 let arena = alloca_guard.mut_arena_by_ptr(ptr_on_arena).unwrap();
                 arena.make_live();
@@ -270,7 +268,7 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
                     }
                 }
             }
-            MarkQueueElement::object(ptr) => {
+            MarkQueueElement::Object(ptr) => {
                 todo!();
                 // делать мне нехуй чтоли
                 // TODO
@@ -284,13 +282,13 @@ impl<U: Arena3 + Send + Sync> Gc<U> {
     fn mark_gray_el_from_ptr(
         mut alloca: Arc<Mutex<alloca::HAllocator<U>>>,
         ptr: ptr,
-        source: &mut Vec<MarkQueueElement>,
+        source: &mut VecDeque<MarkQueueElement>,
     ) {
         match alloca.lock().unwrap().mark_gray(ptr) {
-            None => source.push(MarkQueueElement::object(ptr)),
+            None => source.push_back(MarkQueueElement::Object(ptr)),
             Some(a) => {
                 if !a.fetch_and_add_in_queue() {
-                    source.push(MarkQueueElement::arena(a.span_start()))
+                    source.push_back(MarkQueueElement::Arena(a.span_start()))
                 }
             }
         }

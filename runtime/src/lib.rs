@@ -56,31 +56,25 @@ pub extern "C" fn go(
 }
 
 pub extern "C" fn go_gc(rbp: reg) {
-    unsafe {
-        GC.get().expect("gc is None").lock().unwrap().go_gc(rbp);
-    }
+    GC.get().expect("gc is None").lock().unwrap().go_gc(rbp);
 }
 
 pub extern "C" fn go_native(rbp: reg) {
-    unsafe {
-        THREADS
-            .get()
-            .expect("thrds is None")
-            .lock()
-            .unwrap()
-            .go_immut(rbp);
-    }
+    THREADS
+        .get()
+        .expect("thrds is None")
+        .lock()
+        .unwrap()
+        .go_immut(rbp);
 }
 
 pub extern "C" fn go_back() {
-    unsafe {
-        THREADS
-            .get()
-            .expect("thrds is None")
-            .lock()
-            .unwrap()
-            .go_mut();
-    }
+    THREADS
+        .get()
+        .expect("thrds is None")
+        .lock()
+        .unwrap()
+        .go_mut();
 }
 
 #[cfg(test)]

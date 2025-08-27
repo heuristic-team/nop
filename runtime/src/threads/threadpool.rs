@@ -55,7 +55,7 @@ impl ThreadPool {
         main_in_process.store(false, Ordering::SeqCst);
     }
 
-    pub fn go_immut(&self, rbp: reg) {
+    pub fn go_immut(&self, rbp: reg) -> usize {
         assert_ne!(self.count_of_mutable.load(Ordering::Relaxed), 0);
 
         self.thread_map
@@ -63,7 +63,7 @@ impl ThreadPool {
             .expect("fantom thread")
             .phase = ThreadPhase::new(rbp);
 
-        self.count_of_mutable.fetch_sub(1, Ordering::Relaxed);
+        self.count_of_mutable.fetch_sub(1, Ordering::Relaxed) - 1
     }
 
     pub fn go_mut(&self) {

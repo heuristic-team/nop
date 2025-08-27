@@ -3,6 +3,7 @@ use crate::alloca::arena::Arena3;
 use crate::alloca::cfg::Cfg;
 use crate::alloca::ptr;
 use crate::utils::Object;
+use libc::malloc;
 use std::collections::LinkedList;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -30,7 +31,7 @@ impl<U: Arena3> HAllocator<U> {
         if ptr < self.start || ptr >= self.start + (1 << self.log_capacity_size) {
             None
         } else {
-            Some(&self.blocks[ptr >> self.log_block_size])
+            Some(&self.blocks[(ptr - self.start) >> self.log_block_size])
         }
     }
 
@@ -73,19 +74,22 @@ impl<U: Arena3> HAllocator<U> {
         unreachable!();
     }
 
-    fn arena_tier_by_size(&self, size: usize) -> usize {
-        for tier in 1..self.count_of_tiers {
-            if (self.max_object_size_by_tier)(tier) > size {
-                return tier - 1;
+    fn arena_tier_by_size(&self, size: usize) -> Option<usize> {
+        for tier in 0..self.count_of_tiers {
+            if (self.max_object_size_by_tier)(tier) >= size {
+                return Some(tier);
             }
         }
-        unreachable!();
+        None
     }
-    
-    fn find(&mut self, size: usize) -> Option<&mut U> {
-        let tier = self.arena_tier_by_size(size);
+
+    fn find(&mut self, size: usize) -> (Option<&mut U>, bool) {
+        let tier = match self.arena_tier_by_size(size) {
+            Some(tier) => tier,
+            None => return (None, true),
+        };
         let mut found = None;
-        
+
         for &num_of_block in &self.num_of_blocks_by_tier[tier] {
             let block = &self.blocks[num_of_block];
             if let Some(current) = block.current {
@@ -93,16 +97,15 @@ impl<U: Arena3> HAllocator<U> {
                 break;
             }
         }
-        
+
         if let Some((block_idx, arena_idx)) = found {
             let block = &mut self.blocks[block_idx];
-            return Some(&mut block.items[arena_idx]);
+            return (Some(&mut block.items[arena_idx]), true);
         }
-        
-        None
+
+        (None, true)
     }
-    
-    
+
     fn for_each_arena<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut U),
@@ -160,34 +163,29 @@ impl<U: Arena3> ArenaAllocator3<U> for HAllocator<U> {
     fn alloc(&mut self, o: &Object) -> (ptr, bool) {
         let real_size = o.size + 8;
 
-        // let mut maybe_ref_arena = self.find(real_size);
-        //
-        // // let ref_arena = maybe_ref_arena.unwrap_or(self.add_new_needed_block(real_size));
-        // let ref_arena = match maybe_ref_arena {
-        //   Some(a) => a,
-        //   None => self.add_new_needed_block(real_size),
-        // };
+        let mut ptr = 0; // result
 
-        let ref_arena = {
-            let maybe_ref_arena = self.find(real_size);
-            match maybe_ref_arena {
+        let (maybe_ref_arena, big_object_flag) = self.find(real_size);
+        if big_object_flag {
+            ptr = unsafe { malloc(real_size) } as usize;
+        } else {
+            let ref_arena = match maybe_ref_arena {
                 Some(a) => a,
                 None => self.add_new_needed_block(real_size),
-            }
-        };
+            };
+            ptr = ref_arena.cur();
 
-        let ptr = ref_arena.cur();
+            ref_arena.add(real_size);
+            let empty_space = ref_arena.how_much();
 
-        ref_arena.add(real_size);
-        let empty_space = ref_arena.how_much();
+            let block_of_arena = self.mut_block_by_ptr(ptr).expect("something went wrong");
 
-        let block_of_arena = self.mut_block_by_ptr(ptr).expect("something went wrong");
-
-        if empty_space < block_of_arena.max_object_size {
-            block_of_arena.active.push(block_of_arena.current.unwrap());
-            block_of_arena.current = block_of_arena.archive.pop();
-            if block_of_arena.current.is_some() {
-                block_of_arena.items[block_of_arena.current.unwrap().num_of_arena].alive();
+            if empty_space < block_of_arena.max_object_size {
+                block_of_arena.active.push(block_of_arena.current.unwrap());
+                block_of_arena.current = block_of_arena.archive.pop();
+                if block_of_arena.current.is_some() {
+                    block_of_arena.items[block_of_arena.current.unwrap().num_of_arena].alive();
+                }
             }
         }
 
@@ -195,7 +193,9 @@ impl<U: Arena3> ArenaAllocator3<U> for HAllocator<U> {
             *(ptr as *mut *const Object) = o as *const Object;
         }
 
-        let used = self.used_memory.load(Ordering::Relaxed);
+        // this is shit, but pohuy
+        let used = self.used_memory.fetch_add(real_size, Ordering::Relaxed);
+
         if used > self.max_size {
             (ptr + 8, true)
         } else {
@@ -284,7 +284,7 @@ struct HedgeBlock<U: Arena3> {
     log_arena_size: usize,
     max_object_size: usize,
 
-    // only for find object by ref.
+    // only for find Object by ref.
     // const
     items: Box<[U]>,
 

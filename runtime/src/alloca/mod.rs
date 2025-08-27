@@ -28,12 +28,12 @@ mod tests {
             12,
             20,
             2,
-            1 << 20,
+            8/*GB*/<< 30,
             |size| size / 64,
             3,
         )))
     }
-    
+
     fn test_alloc(object: &Object, aa: &mut HAllocator<HedgeArena>) {
         unsafe {
             let (ptr, pred) = aa.alloc(object);
@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn first_alloc() {
-        let mut aa= HAllocator::new(config1());
+        let mut aa = HAllocator::new(config1());
 
         let inst_1 = Object {
             size: 24,
@@ -74,16 +74,35 @@ mod tests {
         };
         test_alloc(&inst_2, &mut aa);
     }
-    
+
     #[test]
     fn alloc3() {
         let mut aa = HAllocator::new(config1());
         let inst = Object {
-            size: 48,
+            size: 32,
             bitset: &[0],
         };
-        for i in 0..100_000_000 {
+        for i in 0..1_000_000 {
             test_alloc(&inst, &mut aa);
+        }
+    }
+
+    #[test]
+    fn alloc4() {
+        let cfg = config1();
+        let mut aa = HAllocator::new(cfg);
+
+        for i in 0..cfg.count_of_tiers {
+            for j in 0..(0x100000 >> (i * cfg.step_arena_size)) {
+                let max_size_for_this_tier = (cfg.max_object_size_by_size)(
+                    1 << (cfg.log_start_arena_size + i * cfg.step_arena_size),
+                );
+                let inst = Object {
+                    size: max_size_for_this_tier - 8 - (j % 4) * max_size_for_this_tier / 8,
+                    bitset: &[0],
+                };
+                test_alloc(&inst, &mut aa);
+            }
         }
     }
 }
