@@ -4,13 +4,13 @@ use std::{cell::RefCell, rc::Rc};
 
 use frontend::typesystem::Type;
 
-use super::{Control, Dest, basic_block::BasicBlock, function::Func};
+use super::{Control, IRVal, basic_block::BasicBlock, function::Func};
 
 /// Standard operand of the IR instruction.
 ///
 /// It always is either constant or variable.
 pub enum Op {
-    Variable(Dest),
+    Variable(IRVal),
     Const(Const),
 }
 

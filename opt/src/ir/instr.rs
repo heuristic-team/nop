@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
-
 use crate::ir::operand::*;
 
-use crate::ir::Dest;
+use crate::ir::IRVal;
 
 /// Type of the binary [`Instr`]
 pub enum BinaryType {
@@ -39,44 +37,44 @@ pub enum CmpType {
 pub enum Instr {
     Binary {
         tp: BinaryType,
-        dest: Dest,
+        dest: IRVal,
         lhs: Op,
         rhs: Op,
     },
     Cmp {
         tp: CmpType,
-        dest: Dest,
+        dest: IRVal,
         lhs: Op,
         rhs: Op,
     },
     /// actually idk if mov is even going to be useful.
     /// once we ssa there's basically zero point in it, before ssa it is sort of needed though.
     Const {
-        dest: Dest,
+        dest: IRVal,
         imm: Const,
     },
     Call {
-        func: Dest, // ??? what
-        dest: Dest,
-        args: Vec<Dest>,
+        func: IRVal, // ??? what
+        dest: IRVal,
+        args: Vec<IRVal>,
     },
     Jmp(Label),
-    Ret(Option<Dest>),
+    Ret(Option<IRVal>),
     Br {
         true_branch: Label,
         false_branch: Label,
-        cond: Dest,
+        cond: IRVal,
     },
 }
 
 impl Instr {
     /// Creates `call` instruction.
-    pub fn create_call(func: Dest, dest: Dest, args: Vec<Dest>) -> Self {
+    pub fn create_call(func: IRVal, dest: IRVal, args: Vec<IRVal>) -> Self {
         Self::Call { func, dest, args }
     }
 
     /// Creates `cmp` instruction.
-    pub fn create_cmp(tp: CmpType, dest: Dest, lhs: Op, rhs: Op) -> Self {
+    pub fn create_cmp(tp: CmpType, dest: IRVal, lhs: Op, rhs: Op) -> Self {
         Self::Cmp { tp, dest, lhs, rhs }
     }
 
@@ -86,7 +84,7 @@ impl Instr {
     }
 
     /// Creates 'branch' instruction.
-    pub fn create_br(true_branch: Label, false_branch: Label, cond: Dest) -> Self {
+    pub fn create_br(true_branch: Label, false_branch: Label, cond: IRVal) -> Self {
         Self::Br {
             true_branch,
             false_branch,
@@ -94,7 +92,7 @@ impl Instr {
         }
     }
 
-    pub fn create_const(dest: Dest, imm: Const) -> Self {
+    pub fn create_const(dest: IRVal, imm: Const) -> Self {
         Self::Const { dest, imm }
     }
 
@@ -104,12 +102,12 @@ impl Instr {
     }
 
     /// Creates return instruction that returns specified operand.
-    pub fn create_specified_ret(var: Dest) -> Self {
+    pub fn create_specified_ret(var: IRVal) -> Self {
         Self::Ret(Some(var))
     }
 
     /// Creates return instruction that returns specified operand.
-    pub fn create_ret(var: Option<Dest>) -> Self {
+    pub fn create_ret(var: Option<IRVal>) -> Self {
         Self::Ret(var)
     }
 

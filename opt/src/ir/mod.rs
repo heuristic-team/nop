@@ -12,4 +12,4 @@ pub mod operand;
 pub mod program;
 
 pub type Control<Entity> = Rc<RefCell<Entity>>;
-pub type Dest = Control<Var>;
+pub type IRVal = Control<Var>;

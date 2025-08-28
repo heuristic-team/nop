@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::ir::basic_block::BasicBlock;
 use frontend::typesystem::Type;
 
-use super::{Control, Dest, instr::Instr, operand::Var};
+use super::{Control, IRVal, instr::Instr};
 
 /// Represents function inside IR.
 ///
@@ -17,7 +17,7 @@ pub struct Func {
     pub name: String,
     pub tp: Rc<Type>,
     pub blocks: Vec<Control<BasicBlock>>,
-    pub params: Vec<Dest>,
+    pub params: Vec<IRVal>,
 }
 
 impl Func {
@@ -59,7 +59,7 @@ impl Func {
         name: String,
         tp: Rc<Type>,
         blocks: Vec<Control<BasicBlock>>,
-        params: Vec<Dest>,
+        params: Vec<IRVal>,
     ) -> Self {
         Self {
             name,
@@ -90,7 +90,7 @@ impl Func {
     /// Adds parameter to this function.
     ///
     /// Returns mutable reference to this function for `Builder` pattern.
-    pub fn add_parameter(&mut self, param: Dest) -> &mut Self {
+    pub fn add_parameter(&mut self, param: IRVal) -> &mut Self {
         self.params.push(param);
         self
     }

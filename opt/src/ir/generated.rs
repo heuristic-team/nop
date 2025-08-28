@@ -3,7 +3,7 @@ use super::{
     operand::{Const, Label, Op},
 };
 
-use crate::ir::Dest;
+use crate::ir::IRVal;
 
 /// File for macros for generating functions and their uses.
 
@@ -46,7 +46,7 @@ macro_rules! binary_factory {
         paste::paste! {
             #[doc ="Creates binary instruction "]
             #[doc = stringify!($name)]
-            pub fn [<create_ $name>](dest: Dest, lhs: Op, rhs: Op) -> Self {
+            pub fn [<create_ $name>](dest: IRVal, lhs: Op, rhs: Op) -> Self {
                 Self::Binary {tp: $tp, dest, lhs, rhs}
             }
         }
