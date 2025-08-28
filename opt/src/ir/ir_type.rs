@@ -31,7 +31,7 @@ impl Typed for Op {
     fn get_type(&self) -> Rc<Type> {
         match self {
             Self::Const(c) => c.get_type(),
-            Self::Variable(v) => v.get_type(),
+            Self::Variable(v) => v.borrow().get_type(),
         }
     }
 }
@@ -39,13 +39,15 @@ impl Typed for Op {
 impl Typed for Instr {
     fn get_type(&self) -> Rc<Type> {
         match self {
-            Self::Jmp(_) | Self::Br { .. } | Self::Ret(_) => Rc::new(Type::Unit),
-            Self::Binary { dest, .. } => dest.get_type(),
-            Self::Const { dest, .. } => dest.get_type(),
-            Self::Call { dest, .. } => dest.get_type(),
+            Self::Jmp(_) => Type::Unit.into(),
+            Self::Br { .. } => Type::Unit.into(),
+            Self::Ret(_) => Type::Unit.into(),
+            Self::Binary { dest, .. } => dest.borrow().get_type(),
+            Self::Const { dest, .. } => dest.borrow().get_type(),
+            Self::Call { dest, .. } => dest.borrow().get_type(),
             Self::Cmp { dest, .. } => {
-                assert!(*dest.get_type() == Type::Bool);
-                Rc::new(Type::Bool)
+                assert!(*dest.borrow().get_type() == Type::Bool);
+                Type::Bool.into()
             }
         }
     }

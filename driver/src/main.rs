@@ -1,6 +1,6 @@
-use frontend::{lexer::lex, print::PrettyPrintable};
 use frontend::parser::Parser;
 use frontend::sema;
+use frontend::{lexer::lex, print::PrettyPrintable};
 
 mod cli;
 use cli::get_input;
@@ -32,7 +32,7 @@ fn main() {
                 println!("post-sema AST:");
                 unit.0.print();
 
-                let mut translator = ASTTranslator::new();
+                let mut translator = ASTTranslator::default();
                 let program = translator.translate(unit.0);
                 println!("{}", program);
             }
