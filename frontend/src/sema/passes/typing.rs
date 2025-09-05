@@ -233,9 +233,6 @@ impl<'a> TypingImpl<'a> {
             Expr::Declare {
                 tp, value, name, ..
             } => {
-                eprintln!("on decl of {}", name.value);
-                eprintln!("{:?}", self.typemap);
-
                 if let Type::Undef = *tp.value {
                     self.type_expr(value);
                     tp.value = value.tp_rc().clone();
