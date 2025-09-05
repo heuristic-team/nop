@@ -52,10 +52,7 @@ fn handle_implicit_rets_in_decl(decl: &mut FnDecl) {
 /// Find the returned conditional expressions and set full `if ... then ... else ...` chains among with their nested conditionals to the expression position so typecheck can handle them correctly.
 fn set_all_returned_conditionals_to_expr_pos(e: &mut Expr) {
     match e {
-        Expr::Declare { .. } | Expr::Ret { .. } => panic!(
-            "expr {} is invalid when not in statement position, varify that parser is correct",
-            stringify!(e)
-        ),
+        Expr::Declare { .. } | Expr::Ret { .. } => {}
         Expr::Block { body, .. } => {
             if let Some(last) = body.last_mut() {
                 set_all_returned_conditionals_to_expr_pos(last);
