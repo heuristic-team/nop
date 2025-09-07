@@ -1,2 +1,7 @@
+.metals/
+.bloop/
 target/
-*/target/
+.bsp/
+out/
+project/
+graphs/
