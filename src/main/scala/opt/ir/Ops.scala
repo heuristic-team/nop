@@ -4,22 +4,35 @@ package Ops;
 
 import nop.typesystem.Type.Type
 
-/** Represents instruction in the IR. */
+// TODO: get all of this to different modules if the need arises. For now it's good as it is.
+
+/** Represents instruction. */
 sealed trait Instruction {
   def isTerminator: Boolean = false
 }
 
+/** Represents possible operands of instructions. */
 sealed trait Operand
 
 sealed trait Imm extends Operand
 
+/** Represents labels for jump instructions.
+  *
+  * TODO: perhaps this should be extending operand? ig it will be clearer in the field.
+  */
 sealed trait Label
 
+/** Represents parameter/argument of the function */
 case class Param(t: Type, n: String)
 
+/** Represents function.
+  *
+  * @param blocks
+  * @param params
+  */
 case class Fn(blocks: Vector[Instruction], params: Vector[Param]) extends Label
 
-/** Represents basic block in IR.
+/** Represents basic block.
   *
   * In the future should have parameters instead of phi-nodes.
   * @param instrs
@@ -59,8 +72,14 @@ case class Br(cond: Operand, tlabel: Label, flabel: Label) extends Instruction {
   override def isTerminator: Boolean = true
 }
 
+case class Ret(value: Option[Var]) extends Instruction {
+  override def isTerminator: Boolean = true
+}
+
+/** Represents variable */
 case class Var(t: Type, name: String) extends Operand
 
+/** Represents call of the function */
 case class Call(res: Var, fn: Fn, args: Vector[Param])
 
 /** Later should be adapted for different Integer types.
