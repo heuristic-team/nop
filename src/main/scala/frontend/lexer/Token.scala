@@ -1,6 +1,4 @@
-package nop;
-package frontend;
-package lexer;
+package nop.frontend.lexer;
 
 enum Token:
   case EOF
@@ -34,7 +32,6 @@ enum Token:
   case RParen    // `)`
   case LBrace    // `{`
   case RBrace    // `}`
-  case Quote     // `"`
   case Dot       // `.`
   case Comma     // `,`
   case Colon     // `:`

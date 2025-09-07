@@ -2,7 +2,7 @@ package nop;
 package ir;
 package Ops;
 
-import nop.typesystem.Type.Type
+import typesystem.Type
 
 // TODO: get all of this to different modules if the need arises. For now it's good as it is.
 

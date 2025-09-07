@@ -1,6 +1,4 @@
-package nop;
-package frontend;
-package lexer;
+package nop.frontend.lexer;
 
 class Span(val start: Int, val end: Int)
 
