@@ -1,6 +1,6 @@
-package nop;
-package frontend;
-package ast;
+package nop
+package frontend
+package ast
 
 import typesystem.Type
 import lexer.Span
@@ -11,8 +11,12 @@ sealed trait Expr {
   def span: Span
 }
 
-case class Declare(isMut: Boolean, name: WithSpan[String], varTy: WithSpan[Type], value: Expr)
-    extends Expr {
+case class Declaration(
+    isMut: Boolean,
+    name: WithSpan[String],
+    varTy: WithSpan[Type],
+    value: Expr,
+) extends Expr {
   override def ty: Type   = Type.Unit
   override def span: Span = Span(name.span.start, value.span.end)
 }
@@ -43,11 +47,11 @@ case class If(
   override def span: Span = Span(kwSpan.start, onTrue.span.end)
 }
 
-case class Num(ty: Type, value: WithSpan[Int]) extends Expr {
+case class NumLit(ty: Type, value: WithSpan[Int]) extends Expr {
   override def span: Span = value.span
 }
 
-case class Bool(value: Boolean, span: Span) extends Expr {
+case class BoolLit(value: Boolean, span: Span) extends Expr {
   override def ty: Type = Type.Bool
 }
 

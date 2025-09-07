@@ -1,10 +1,10 @@
-package nop.frontend.lexer;
+package nop.frontend.lexer
 
 import scala.collection.mutable.ArrayBuffer
 
 type Lexeme = WithSpan[Token];
 
-class Lexemes(val lexemes: ArrayBuffer[Lexeme], eofSpan: Span):
+class Lexemes(lexemes: ArrayBuffer[Lexeme], eofSpan: Span):
   private var offset: Int = 0
   private def eof: Lexeme = WithSpan(Token.EOF, eofSpan)
 

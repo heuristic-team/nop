@@ -1,4 +1,4 @@
-package nop.frontend.lexer;
+package nop.frontend.lexer
 
 import scala.collection.mutable.ArrayBuffer
 import scala.util.boundary.break;

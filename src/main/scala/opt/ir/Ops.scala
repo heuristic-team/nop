@@ -1,6 +1,6 @@
-package nop;
-package ir;
-package Ops;
+package nop
+package ir
+package Ops
 
 import typesystem.Type
 

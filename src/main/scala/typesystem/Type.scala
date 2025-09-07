@@ -1,9 +1,18 @@
-package nop;
-package typesystem;
+package nop
+package typesystem
 
 import frontend.lexer.WithSpan
 
-class Field(val name: String, val ty: WithSpan[Type])
+case class Field(val name: String, val ty: WithSpan[Type])
+
+object Type {
+  def primitiveFromString(s: String): Option[Type] =
+    s match
+      case "i64"  => Some(I64)
+      case "bool" => Some(Bool)
+      case "unit" => Some(Unit)
+      case _      => None
+}
 
 enum Type {
   case Undef
@@ -14,13 +23,6 @@ enum Type {
   case Function(val params: List[Type], val rettype: Type)
   case Struct(val name: WithSpan[String], val fields: List[Field])
   case Alias(val target: String)
-
-  def primitiveFromString(s: String): Option[Type] =
-    s match
-      case "i64"  => Some(I64)
-      case "bool" => Some(Bool)
-      case "unit" => Some(Unit)
-      case _      => None
 
   def isPrimitive: Boolean =
     this match
