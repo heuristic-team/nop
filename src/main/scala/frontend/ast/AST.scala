@@ -17,5 +17,3 @@ case class FnDecl(
     params: List[FnParam],
     body: Expr,
 )
-
-
