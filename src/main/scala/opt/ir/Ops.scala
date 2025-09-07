@@ -15,7 +15,9 @@ sealed trait Imm extends Operand
 
 sealed trait Label
 
-case class Fn(blocks: Vector[Instruction]) extends Label
+case class Param(t: Type, n: String)
+
+case class Fn(blocks: Vector[Instruction], params: Vector[Param]) extends Label
 
 /** Represents basic block in IR.
   *
@@ -28,14 +30,6 @@ case class BasicBlock(instrs: Vector[Instruction]) extends Label {
   def map(f: Instruction => Instruction): BasicBlock         = BasicBlock(instrs map f)
 }
 
-enum BOpType {
-  case Add
-  case Sub
-  case Mul
-  case Div
-  case Cmp
-}
-
 enum CmpType {
   case LE
   case GE
@@ -45,18 +39,29 @@ enum CmpType {
   case GT
 }
 
-class BinOp(opType: BOpType, result: Var, lhs: Operand, rhs: Operand) extends Instruction
+class BinOp(result: Var, lhs: Operand, rhs: Operand) extends Instruction
+
+case class Add(res: Var, lhs: Operand, rhs: Operand) extends BinOp(res, lhs, rhs)
+
+case class Sub(res: Var, lhs: Operand, rhs: Operand) extends BinOp(res, lhs, rhs)
+
+case class Div(res: Var, lhs: Operand, rhs: Operand) extends BinOp(res, lhs, rhs)
+
+case class Mul(res: Var, lhs: Operand, rhs: Operand) extends BinOp(res, lhs, rhs)
 
 case class Jmp(label: Label) extends Instruction {
   override def isTerminator: Boolean = true
 }
 
-case class Cmp(t: CmpType, result: Var, lhs: Operand, rhs: Operand)
-    extends BinOp(BOpType.Cmp, result, lhs, rhs)
+case class Cmp(t: CmpType, result: Var, lhs: Operand, rhs: Operand) extends BinOp(result, lhs, rhs)
 
-case class Br(cond: Operand, tlabel: Label, flabel: Label) extends Instruction
+case class Br(cond: Operand, tlabel: Label, flabel: Label) extends Instruction {
+  override def isTerminator: Boolean = true
+}
 
 case class Var(t: Type, name: String) extends Operand
+
+case class Call(res: Var, fn: Fn, args: Vector[Param])
 
 /** Later should be adapted for different Integer types.
   *
