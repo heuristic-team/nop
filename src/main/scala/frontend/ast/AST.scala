@@ -5,16 +5,17 @@ package ast
 import scala.collection.mutable.HashMap
 
 import typesystem.Type
+
 import lexer.Span
 import lexer.WithSpan
 
-class AST(val decls: HashMap[String, FnDecl] = HashMap())
+import support.PrettyPrintable
+import support.Tree
 
-case class FnParam(isMut: Boolean, name: WithSpan[String], ty: WithSpan[Type])
-
-case class FnDecl(
-    name: WithSpan[String],
-    rettype: WithSpan[Type],
-    params: List[FnParam],
-    body: Expr,
-)
+class AST(val decls: HashMap[String, FnDecl] = HashMap()) extends PrettyPrintable {
+  override def toTree: Tree =
+    Tree(
+      "AST", // probably will put filename here
+      decls.values.map(_.toTree).toList,
+    )
+}

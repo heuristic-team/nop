@@ -11,7 +11,7 @@ class Lexemes(lexemes: ArrayBuffer[Lexeme], eofSpan: Span):
   type State = Int
 
   /// Check if end of input is reached.
-  def is_eof: Boolean = offset >= lexemes.length
+  def isEof: Boolean = offset >= lexemes.length
 
   /// Peek next lexeme without extracting it. If there's no lexeme, return EOF lexeme.
   def peek: Lexeme = peekNth(0)

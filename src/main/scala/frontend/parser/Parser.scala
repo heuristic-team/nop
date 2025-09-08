@@ -36,7 +36,26 @@ private def matchToken(tokens: Token*): Token => Boolean =
   t => tokens.exists(_.ordinal == t.ordinal)
 
 class Parser(lexemes: Lexemes) {
-  def parse: Res[(List[FnDecl], List[TypeDecl])] = ???
+  def parse: Res[(List[FnDecl], List[TypeDecl])] =
+    def parseDecl[T](p: => Res[T]): Res[(T, List[FnDecl], List[TypeDecl])] =
+      for {
+        decl         <- p
+        _            <- get(matchToken(Token.EOL, Token.EOF), Token.EOL, Token.EOF)
+        (fns, types) <- parse
+      } yield (decl, fns, types)
+
+    eatNewlines
+    if lexemes.isEof then Right((Nil, Nil))
+    else {
+      val WithSpan(token, span) = lexemes.peek
+      token match
+        case Token.Fn =>
+          for (fn, fns, types) <- parseDecl(parseFnDecl) yield (fn +: fns, types)
+        case Token.Type | Token.Struct =>
+          for (ty, fns, types) <- parseDecl(parseTypeDecl) yield (fns, ty +: types)
+        case t =>
+          Left(ParseError(Token.Fn :: Token.Type :: Token.Struct :: Nil, t, span))
+    }
 
   /** Eat token if `matcher` is satisfied.
     *
@@ -97,6 +116,8 @@ class Parser(lexemes: Lexemes) {
     getMap(extractor, "identifier")
 
   private def eatNewlines = eatWhile(_ == Token.EOL)
+
+  private def between[T](l: => Res[?], r: => Res[?], p: => Res[T]): Res[T] = l *> p <* r
 
   private def parseSepEndByUntil[T](
       p: => Res[T],
@@ -243,7 +264,11 @@ class Parser(lexemes: Lexemes) {
         _ = eatNewlines
       } yield FnParam(isMut, name, ty)
 
-    parseSepEndByUntil(param, Token.Comma, Token.RParen) <* get(Token.RParen)
+    between(
+      get(Token.LParen),
+      get(Token.RParen),
+      parseSepEndByUntil(param, Token.Comma, Token.RParen),
+    )
   }
 
   /** Parse any expression and provide it with information about statement position.
@@ -253,9 +278,10 @@ class Parser(lexemes: Lexemes) {
     */
   private def parseTopLevelExpr: Res[Expr] =
     lexemes.peekN(3).map(_.value) match {
-      case Token.Mut :: Token.Id(_) :: Token.Define :: _ | Token.Id(_) :: Token.Define :: _ |
-          Token.Mut :: Token.Id(_) :: Token.Colon :: _ | Token.Id(_) :: Token.Colon :: _ =>
-        parseDeclarationExpr
+      case Token.Mut :: Token.Id(_) :: Token.Define :: _
+        | Token.Id(_) :: Token.Define :: _
+        | Token.Mut :: Token.Id(_) :: Token.Colon :: _
+        | Token.Id(_) :: Token.Colon :: _ => parseDeclarationExpr
       case Token.Ret :: _ => parseRetExpr
       case _              => parseExpr(inStmtPos = true)
     }

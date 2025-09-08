@@ -63,6 +63,21 @@ enum BinaryOp {
       case And | Or => true
       case _        => false
     }
+
+  override def toString: String =
+    this match
+      case Assign => "="
+      case Plus => "+"
+      case Minus => "-"
+      case Mul => "*"
+      case Eq => "=="
+      case NotEq => "!="
+      case Less => "<"
+      case LessEq => "<="
+      case Greater => ">"
+      case GreaterEq => ">="
+      case And => "&&"
+      case Or => "||"
 }
 
 object BinaryOp {
