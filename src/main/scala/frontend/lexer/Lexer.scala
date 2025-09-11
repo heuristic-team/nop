@@ -5,8 +5,8 @@ import scala.util.boundary.break;
 import scala.util.boundary
 
 extension (c: Char)
-  def isIdentifierStart = c.isLetter || c == '_'
-  def isIdentifierChar  = c.isLetterOrDigit || c == '_'
+  def isIdentifierStart         = c.isLetter || c == '_'
+  def isIdentifierChar          = c.isLetterOrDigit || c == '_'
   def isWhitespaceButNotNewline = c.isWhitespace && c != '\n'
 
 private class Lexer(input: String):
@@ -90,24 +90,24 @@ private class Lexer(input: String):
     Lexemes(lexemes, eofSpan)
 
   private def lexSingleChar(c: Char): Option[Lexeme] =
-    SINGLE_CHAR_TOKENS.find(p => p._1 == c) match
-      case Some((_, tok)) =>
-        val o = offset
-        nextChar
-        Some(WithSpan(tok, Span(o, o)))
-      case None => None
+    SINGLE_CHAR_TOKENS.find(p => p._1 == c).map { (_, tok) =>
+      val o = offset
+      nextChar
+      WithSpan(tok, Span(o, o))
+    }
 
   private def lexTwoChar(c1: Char): Option[Lexeme] =
-    TWO_CHAR_TOKENS.find(p => p._1 == c1) match
-      case Some((_, c2, tok1, tok2)) =>
+    TWO_CHAR_TOKENS
+      .find(p => p._1 == c1)
+      .map { (_, c2, tok1, tok2) =>
         val o1 = offset
         nextChar
         if peekChar.exists(_ == c2) then
           val o2 = offset
           nextChar
-          Some(WithSpan(tok2, Span(o1, o2)))
-        else Some(WithSpan(tok1, Span(o1, o1)))
-      case None => None
+          WithSpan(tok2, Span(o1, o2))
+        else WithSpan(tok1, Span(o1, o1))
+      }
 
   private def lexId(c: Char): Option[Lexeme] =
     if !c.isIdentifierStart then None
