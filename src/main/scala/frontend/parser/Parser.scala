@@ -277,11 +277,12 @@ class Parser(lexemes: Lexemes) {
     * `parse_expr`.
     */
   private def parseTopLevelExpr: Res[Expr] =
-    lexemes.peekN(3).map(_.value) match {
+    lexemes.peekN(3).map(_.value).toList match {
       case Token.Mut :: Token.Id(_) :: Token.Define :: _
         | Token.Id(_) :: Token.Define :: _
         | Token.Mut :: Token.Id(_) :: Token.Colon :: _
-        | Token.Id(_) :: Token.Colon :: _ => parseDeclarationExpr
+        | Token.Id(_) :: Token.Colon :: _ =>
+        parseDeclarationExpr
       case Token.Ret :: _ => parseRetExpr
       case _              => parseExpr(inStmtPos = true)
     }
